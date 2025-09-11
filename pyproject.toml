@@ -1,0 +1,24 @@
+[project]
+name = "visual-comic-crew"
+version = "0.1.0"
+description = "ComicBook using crewAI"
+authors = [{ name = "Your Name", email = "you@example.com" }]
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "crewai[tools]>=0.177.0,<1.0.0",
+    "google-generativeai>=0.8.0"
+]
+
+[project.scripts]
+visual_comic_crew = "visual_comic_crew.main:run"
+run_crew = "visual_comic_crew.main:run"
+train = "visual_comic_crew.main:train"
+replay = "visual_comic_crew.main:replay"
+test = "visual_comic_crew.main:test"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.crewai]
+type = "crew"
