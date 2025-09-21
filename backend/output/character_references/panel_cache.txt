@@ -1,0 +1,5 @@
+2cec1de28f21d65cd51e48d15083c4f2=output\comic_panels\consistent_panel_098_z-woman.png
+aa051c2534e582cb5bf0d009e912c0cb=output\comic_panels\consistent_panel_002_detective kaito.png
+619601a71e8951fac6ccf8089a1c449a=output\comic_panels\consistent_panel_003_detective kaito.png
+cd79f099b774b7232c5f59acb5f33625=output\comic_panels\consistent_panel_004_dr. lena petrova.png
+8442d25d77f5e7d0b6de871343c0eb83=output\comic_panels\consistent_panel_005_dr. lena petrova.png

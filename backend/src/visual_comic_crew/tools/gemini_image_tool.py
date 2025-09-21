@@ -69,24 +69,62 @@ class GeminiImageTool(BaseTool):
             source_filename = os.path.basename(source_image_path)
             
             # Define destination directory (comic_panels folder)
-            output_dir = os.path.join(os.getcwd(), "output", "comic_panels")
+            # Use absolute path to avoid working directory issues
+            backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+            output_dir = os.path.join(backend_dir, "output", "comic_panels")
             os.makedirs(output_dir, exist_ok=True)
+            _dbg(f"Destination directory: {output_dir}")
             
             # Copy the image to our output directory
             destination_path = os.path.join(output_dir, source_filename)
             
             try:
-                # Check if source file exists
-                if not os.path.exists(source_image_path):
-                    _dbg(f"Source file not found: {source_image_path}")
+                # Wait a moment for file system to settle (sometimes needed after generation)
+                time.sleep(0.5)
+                
+                # Check if source file exists with retries
+                max_retries = 3
+                for attempt in range(max_retries):
+                    if os.path.exists(source_image_path):
+                        break
+                    _dbg(f"Source file not found on attempt {attempt + 1}, waiting...")
+                    time.sleep(1)
+                else:
+                    _dbg(f"Source file not found after {max_retries} attempts: {source_image_path}")
                     return f"Image generated but source file not found: {source_image_path}"
+                
+                # Verify file is readable
+                try:
+                    with open(source_image_path, 'rb') as f:
+                        # Read first few bytes to ensure file is complete
+                        f.read(10)
+                except Exception as read_error:
+                    _dbg(f"Source file not readable: {read_error}")
+                    return f"Image generated but source file not readable: {source_image_path}"
                 
                 # Copy the file from Gemini Image Tutorial to our comic project
                 shutil.copy2(source_image_path, destination_path)
                 _dbg(f"Image copied to: {destination_path}")
                 
+                # Verify the copy was successful
+                if not os.path.exists(destination_path):
+                    _dbg(f"Copy verification failed - destination file not found")
+                    return f"Image copy verification failed: {destination_path}"
+                
+                # Also copy to frontend public directory for web display
+                frontend_dir = os.path.join(backend_dir, "..", "frontend", "public", "comic_panels")
+                frontend_dir = os.path.normpath(frontend_dir)
+                os.makedirs(frontend_dir, exist_ok=True)
+                frontend_path = os.path.join(frontend_dir, source_filename)
+                
+                try:
+                    shutil.copy2(destination_path, frontend_path)
+                    _dbg(f"Image also copied to frontend: {frontend_path}")
+                except Exception as frontend_error:
+                    _dbg(f"Failed to copy to frontend (non-critical): {frontend_error}")
+                
                 # Return the relative path that can be used in markdown
-                relative_path = f"output/comic_panels/{source_filename}"
+                relative_path = f"comic_panels/{source_filename}"
                 return f"Image generated successfully. Local path: {relative_path}"
                 
             except Exception as copy_error:

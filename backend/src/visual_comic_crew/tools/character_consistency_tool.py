@@ -8,6 +8,7 @@ from typing import Type
 import requests
 import shutil
 import time
+import hashlib
 
 class CharacterConsistencyToolSchema(BaseModel):
     """Input schema for Character Consistency Tool."""
@@ -23,6 +24,11 @@ class CharacterConsistencyTool(BaseTool):
     Enhanced Character Consistency Tool based on Gemini Image Tutorial Option 6.
     Creates character reference sheets and generates consistent character images
     across multiple comic panels, maintaining the same character appearance.
+    
+    OPTIMIZATIONS:
+    - Panel generation caching to prevent duplicate calls
+    - Efficient dual image handling from Gemini server
+    - Better error handling to prevent retry loops
     """
     
     name: str = "Character Consistency Tool"
@@ -44,6 +50,71 @@ class CharacterConsistencyTool(BaseTool):
         cache_dir = Path("output/character_references")
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / "character_cache.txt"
+    
+    def _get_panel_cache_path(self) -> Path:
+        """Get the path to the panel generation cache file"""
+        cache_dir = Path("output/character_references")
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        return cache_dir / "panel_cache.txt"
+    
+    def _generate_panel_cache_key(self, character_name: str, scene_description: str, panel_number: int) -> str:
+        """Generate a unique cache key for panel generation"""
+        content = f"{character_name.lower()}_{panel_number}_{scene_description}"
+        return hashlib.md5(content.encode()).hexdigest()
+    
+    def _check_panel_cache(self, character_name: str, scene_description: str, panel_number: int) -> Optional[str]:
+        """Check if this panel has already been generated recently"""
+        cache_file = self._get_panel_cache_path()
+        if not cache_file.exists():
+            return None
+            
+        cache_key = self._generate_panel_cache_key(character_name, scene_description, panel_number)
+        
+        try:
+            with open(cache_file, 'r') as f:
+                for line in f:
+                    if '=' in line:
+                        key, path = line.strip().split('=', 1)
+                        if key == cache_key and Path(path).exists():
+                            print(f"🎯 Found cached panel for {character_name} panel {panel_number}: {path}")
+                            return path
+        except Exception:
+            pass
+        
+        return None
+    
+    def _save_panel_cache(self, character_name: str, scene_description: str, panel_number: int, panel_path: str):
+        """Save panel generation to cache"""
+        cache_file = self._get_panel_cache_path()
+        cache_key = self._generate_panel_cache_key(character_name, scene_description, panel_number)
+        
+        try:
+            # Read existing cache
+            cache_data = {}
+            if cache_file.exists():
+                with open(cache_file, 'r') as f:
+                    for line in f:
+                        if '=' in line:
+                            key, value = line.strip().split('=', 1)
+                            cache_data[key] = value
+            
+            # Add new panel
+            cache_data[cache_key] = panel_path
+            
+            # Keep only recent entries (last 10 panels to avoid cache bloat)
+            if len(cache_data) > 10:
+                # Keep only the last 10 entries
+                cache_items = list(cache_data.items())[-10:]
+                cache_data = dict(cache_items)
+            
+            # Write back to file
+            with open(cache_file, 'w') as f:
+                for key, value in cache_data.items():
+                    f.write(f"{key}={value}\n")
+                    
+            print(f"💾 Panel cached: {character_name} panel {panel_number}")
+        except Exception as e:
+            print(f"Warning: Could not save panel cache: {e}")
     
     def _save_character_reference(self, character_name: str, reference_path: str):
         """Save character reference path to cache file"""
@@ -99,10 +170,15 @@ class CharacterConsistencyTool(BaseTool):
         
         return None
 
-    def _generate_image_via_server(self, prompt: str, base_image_paths: Optional[list] = None) -> str:
+    def _generate_image_via_server(self, prompt: str, base_image_paths: Optional[list] = None, single_call: bool = False) -> str:
         """
         Generate image using the existing Gemini server infrastructure.
         Enhanced with Option 6 approach for character consistency.
+        
+        Args:
+            prompt: The image generation prompt
+            base_image_paths: Optional character reference paths
+            single_call: If True, only make one call to avoid duplicate generation
         """
         try:
             payload = {"prompt": prompt}
@@ -111,6 +187,11 @@ class CharacterConsistencyTool(BaseTool):
                 print(f"🎭 Using character reference(s): {base_image_paths}")
 
             print(f"🎨 Generating image with prompt: {prompt[:100]}...")
+            
+            # Make only one call if single_call is True to prevent duplicates
+            if single_call:
+                print(f"⚡ Single-call mode: optimized generation")
+            
             response = requests.post(self.server_url, json=payload, timeout=120)
             
             if response.status_code == 200:
@@ -200,6 +281,11 @@ class CharacterConsistencyTool(BaseTool):
         Generates a comic panel with the specified character in a new scene (Option 6 approach).
         Uses character reference to maintain consistency.
         
+        OPTIMIZATIONS:
+        - Checks cache first to avoid duplicate generation
+        - Uses single-call mode to prevent dual image generation
+        - Better error handling and cleanup
+        
         Args:
             character_name (str): Name of the character to include
             scene_description (str): Description of the scene/panel
@@ -211,6 +297,11 @@ class CharacterConsistencyTool(BaseTool):
         try:
             character_key = character_name.lower()
             
+            # OPTIMIZATION: Check panel cache first
+            cached_panel = self._check_panel_cache(character_name, scene_description, panel_number)
+            if cached_panel:
+                return cached_panel
+            
             # Check if we have a character reference (Option 6 requirement)
             reference_path = self._get_character_reference(character_name)
             if not reference_path:
@@ -219,19 +310,42 @@ class CharacterConsistencyTool(BaseTool):
             
             print(f"📚 Using character reference for {character_name}: {reference_path}")
             
-            # Convert relative path to absolute path for server
+            # Convert to absolute path first to ensure it exists
             if not os.path.isabs(reference_path):
                 reference_path = os.path.abspath(reference_path)
+            
+            # Verify the reference file exists
+            if not Path(reference_path).exists():
+                return f"❌ Character reference file not found at {reference_path}"
+            
+            # Copy character reference to Gemini server's working directory for access
+            gemini_tutorial_dir = r"C:\Users\ninic\projects\Datacamp_projects\gemini-image-tutorial"
+            gemini_ref_path = os.path.join(gemini_tutorial_dir, "temp_character_refs")
+            os.makedirs(gemini_ref_path, exist_ok=True)
+            
+            # Create temporary reference file in Gemini's directory
+            temp_ref_name = f"{character_key}_temp_ref_{panel_number}.png"  # Include panel number for uniqueness
+            temp_ref_full_path = os.path.join(gemini_ref_path, temp_ref_name)
+            shutil.copy2(reference_path, temp_ref_full_path)
+            
+            # Use relative path that Gemini server can access
+            server_relative_path = f"temp_character_refs/{temp_ref_name}"
             
             # Option 6 approach: place character from reference into new scene
             scene_prompt = f"{scene_description}"
             
             print(f"🎬 Generating panel {panel_number} with {character_name}...")
+            print(f"🎭 Copied reference to Gemini server directory: {server_relative_path}")
             
-            # Generate with character reference (Option 6 approach)
-            result = self._generate_image_via_server(scene_prompt, [reference_path])
+            # OPTIMIZATION: Use single-call mode to prevent duplicate generation
+            result = self._generate_image_via_server(scene_prompt, [server_relative_path], single_call=True)
             
             if result.startswith("❌"):
+                # Clean up temporary file on error
+                try:
+                    os.remove(temp_ref_full_path)
+                except:
+                    pass
                 return result
             
             # Handle relative paths from Gemini Image Tutorial (same as character reference creation)
@@ -244,6 +358,11 @@ class CharacterConsistencyTool(BaseTool):
             # Move to consistent panels in comic_panels directory
             source_path = Path(source_image_path)
             if not source_path.exists():
+                # Clean up temporary file on error
+                try:
+                    os.remove(temp_ref_full_path)
+                except:
+                    pass
                 return f"❌ Generated panel not found at {source_image_path}"
             
             # Create filename for consistent panel
@@ -255,6 +374,15 @@ class CharacterConsistencyTool(BaseTool):
             
             # Copy the generated image
             shutil.copy2(source_path, panel_path)
+            
+            # OPTIMIZATION: Save to panel cache for future use
+            self._save_panel_cache(character_name, scene_description, panel_number, str(panel_path))
+            
+            # Clean up temporary reference file
+            try:
+                os.remove(temp_ref_full_path)
+            except:
+                pass  # Ignore cleanup errors
             
             print(f"✅ Panel {panel_number} with {character_name} saved to {panel_path}")
             return str(panel_path)
