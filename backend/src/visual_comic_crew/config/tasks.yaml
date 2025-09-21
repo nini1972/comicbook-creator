@@ -1,0 +1,107 @@
+story_creation_task:
+  description: >
+    Create a comic story script for {topic} with:
+    1. A compelling storyline with beginning, middle, and end
+    2. 4-6 panel breakdown with detailed visual descriptions
+    3. Character descriptions and dialogue for each panel
+    4. Visual style guidelines and mood specifications
+  expected_output: >
+    A detailed comic script with panel-by-panel descriptions,
+    character details, dialogue, and visual style notes
+  agent: story_writer
+
+image_generation_task:
+  description: |
+    Generate comic panel images based on the story script with consistent character appearances using Option 6 approach.
+
+    STEP 1 - CHARACTER CONSISTENCY SETUP (Option 6 Approach):
+    If the story contains named characters (like Lyra, Nimbus, etc.), FIRST create character references:
+    1. Identify all main characters from the story
+    2. For EACH character, use the Character Consistency Tool with action "create_character":
+       - character_name: The character's name
+       - character_description: Detailed physical description from the story
+       - existing_image_path: (optional) Path to existing character image if available
+    3. This creates detailed character reference sheets for consistent appearance across panels
+    4. Wait for successful character reference creation before proceeding to panels
+
+    STEP 2 - PANEL GENERATION WITH CHARACTER CONSISTENCY:
+    For each panel described in the story:
+    1. Extract the visual description for that panel
+    2. Identify which named characters appear in this panel
+    3. For panels WITH named characters:
+       - Use the Character Consistency Tool with action "generate_scene"
+       - character_name: Name of the main character in the panel
+       - scene_description: The panel's scene description  
+       - panel_number: The current panel number
+       - This ensures the character looks exactly like their reference sheet
+    4. For panels WITHOUT named characters:
+       - Use the Gemini Image Generator tool for standard generation
+    5. Record the returned image path from the tool response
+
+    CRITICAL CONSISTENCY REQUIREMENTS:
+    - ALWAYS create character references BEFORE generating any panels with those characters
+    - Use the EXACT character name consistently across all tools calls
+    - Include clear character descriptions that capture unique visual features
+    - Verify character reference creation succeeded before proceeding
+
+    CRITICAL: Always provide a complete final answer even if some images fail to generate.
+    After generating each image, extract the image path from the tool response.
+
+    If image generation fails for any panel:
+    - Continue attempting remaining panels
+    - Note which panels failed
+    - Still provide paths for successfully generated images
+
+    ALWAYS end with a complete summary listing:
+    - Character references created (with paths)
+    - All attempted panels (1-6)
+    - Successfully generated image paths
+    - Character consistency status for each panel
+    - Any failed attempts
+
+    Ensure visual continuity and comic art style (same characters, styles, palette).
+    Maintain consistent lighting and color palette.
+  expected_output: >
+    A complete summary including:
+    - Total panels attempted 
+    - List of successfully generated image paths (format: output/comic_panels/filename.png)
+    - Panel descriptions for successful generations
+    - Notes about any failures
+    - Visual consistency notes
+
+    REQUIRED FORMAT:
+    Generated Images:
+    - Panel 1: [path or "FAILED"]
+    - Panel 2: [path or "FAILED"] 
+    - Panel 3: [path or "FAILED"]
+    - Panel 4: [path or "FAILED"]
+    - Panel 5: [path or "FAILED"]
+  agent: visual_director
+  context:
+    - story_creation_task
+
+comic_assembly_task:
+  description: |
+    Use the Comic Layout Designer tool to create the final comic layout.
+
+    CRITICAL INSTRUCTIONS:
+    1. Extract panel descriptions and dialogue from the story task
+    2. Extract image paths from the image generation task  
+    3. Call the Comic Layout Designer tool with these parameters
+    4. Return ONLY the tool's markdown output - NO agent thoughts or reasoning
+
+    Your final answer must contain ONLY the comic markdown layout.
+  expected_output: >
+    Clean comic markdown layout with panels, images, and dialogue.
+    NO agent thoughts, reasoning, or meta-commentary.
+    ONLY the comic content itself.
+    The tool returns a complete comic strip in markdown format with:
+    - Title and introduction
+    - Properly formatted panels with descriptions  
+    - Embedded images with correct frontend paths (/comic_panels/filename.png)
+    - Dialogue for each panel
+    - Professional presentation
+  agent: comic_assembler
+  context:
+    - story_creation_task
+    - image_generation_task

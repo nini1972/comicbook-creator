@@ -1,0 +1,6 @@
+zara=output\character_references\zara_reference.png
+captain zara=output\character_references\captain zara_reference.png
+echo=output\character_references\echo_reference.png
+leo=output\character_references\leo_reference.png
+ferdinand=output\character_references\ferdinand_reference.png
+princess ira=output\character_references\princess ira_reference.png

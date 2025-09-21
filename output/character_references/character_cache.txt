@@ -1,0 +1,2 @@
+zara=output\character_references\zara_reference.png
+leo=output\character_references\leo_reference.png
