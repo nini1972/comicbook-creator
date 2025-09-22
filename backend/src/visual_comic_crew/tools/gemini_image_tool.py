@@ -127,6 +127,39 @@ class GeminiImageTool(BaseTool):
                 try:
                     shutil.copy2(destination_path, frontend_path)
                     _dbg(f"Image also copied to frontend: {frontend_path}")
+                    
+                    # Registry update: Log successful generation and sync
+                    from .registry import update_registry_entry
+                    
+                    # Extract panel number from the prompt (e.g., "Panel 1:", "Panel 2:", etc.)
+                    panel_id = None
+                    panel_match = re.search(r'panel\s*(\d+)', prompt.lower())
+                    if panel_match:
+                        panel_number = panel_match.group(1)
+                        panel_id = f"panel_{panel_number}"
+                        _dbg(f"Extracted panel number from prompt: {panel_id}")
+                    else:
+                        # Try to extract from filename as fallback
+                        filename = os.path.basename(source_image_path)
+                        panel_id_match = re.search(r'panel[_\s]*(\d+)', filename, re.IGNORECASE)
+                        if panel_id_match:
+                            panel_id = f"panel_{panel_id_match.group(1)}"
+                            _dbg(f"Extracted panel number from filename: {panel_id}")
+                        else:
+                            # Use a cleaned version of the filename as panel_id for registry (fallback)
+                            clean_filename = re.sub(r'[^\w]', '_', filename.split('.')[0])
+                            panel_id = clean_filename[:50]  # Limit length
+                            _dbg(f"Using filename as panel ID: {panel_id}")
+                    
+                    if panel_id:
+                        update_registry_entry(
+                            panel_id=panel_id,
+                            backend=True,
+                            frontend=True,
+                            verified=True
+                        )
+                        _dbg(f"Registry updated: {panel_id} marked as verified")
+                    
                 except Exception as frontend_error:
                     _dbg(f"Failed to copy to frontend (non-critical): {frontend_error}")
                 

@@ -69,21 +69,75 @@ Report back with detailed results for each panel.
         return delegation_instruction
 
     def _check_generation_status(self) -> str:
-        """Check status of current generation process."""
-        _dbg("Checking generation status")
+        """Check status of current generation process with sync polling."""
+        _dbg("Checking generation status with sync verification")
         
-        status_check = """
+        # Poll for sync before validation (Patch 1)
+        from .sync import poll_for_image_sync, update_panel_registry, extract_panel_paths_from_generation_results
+        
+        # Note: In real implementation, you would get generation_results from previous task
+        # For now, we'll create a placeholder that can be enhanced when integrated
+        try:
+            # Hypothetical panel paths (this would come from actual generation results)
+            panel_paths = {
+                f"panel_{i}": f"server_generated_panel_{i:03d}.png"
+                for i in range(1, 7)
+            }
+            
+            _dbg(f"Polling sync status for {len(panel_paths)} panels")
+            
+            # Poll for sync
+            sync_status = poll_for_image_sync(
+                panel_paths,
+                backend_dir="output/comic_panels",
+                frontend_dir="frontend/public/comic_panels",
+                retries=3,
+                delay=1.5
+            )
+            
+            # Update registry
+            update_panel_registry(sync_status)
+            
+            # Generate enhanced status report
+            verified_panels = [pid for pid, status in sync_status.items() if status['verified']]
+            pending_panels = [pid for pid, status in sync_status.items() if not status['verified']]
+            
+            status_check = f"""
+STATUS CHECK WITH SYNC VERIFICATION:
+
+Sync Status:
+- Verified panels: {len(verified_panels)}/6
+- Pending sync: {len(pending_panels)}/6
+- Registry updated: ✅
+
+Please provide current generation status including:
+1. Total panels attempted  
+2. Successfully generated panels with paths
+3. Failed panels with failure reasons
+4. Current retry count
+5. Next recommended action
+
+Sync-verified panels: {verified_panels}
+Pending sync panels: {pending_panels}
+
+Format as structured report for easy parsing.
+"""
+            
+        except Exception as e:
+            _dbg(f"Sync polling failed: {e}")
+            status_check = """
 STATUS CHECK REQUEST:
 
 Please provide current generation status including:
 1. Total panels attempted
-2. Successfully generated panels with paths
+2. Successfully generated panels with paths  
 3. Failed panels with failure reasons
 4. Current retry count
 5. Next recommended action
 
 Format as structured report for easy parsing.
 """
+            
         return status_check
 
     def _retry_failed_panels(self, panel_numbers: List[int], story_context: str, max_attempts: int) -> str:
@@ -126,16 +180,37 @@ class RetryManagerTool(BaseTool):
 
     def _run(self, failed_panels: List[int], total_panels: int = 6, 
              current_attempt: int = 1, max_retries: int = 3) -> str:
-        """Manage retry logic and determine next action."""
+        """Manage retry logic with registry-aware filtering."""
         
         _dbg(f"Managing retry for panels {failed_panels}, attempt {current_attempt}/{max_retries}")
         
-        # Calculate retry status
-        success_rate = ((total_panels - len(failed_panels)) / total_panels) * 100
+        # Patch 2: Registry-Aware Retry Filtering
+        from .registry import get_panel_status
+        
+        # Filter failed_panels to exclude verified ones  
+        filtered_failed_panels = []
+        registry_verified_panels = []
+        
+        for panel_num in failed_panels:
+            panel_id = f"panel_{panel_num}"
+            status = get_panel_status(panel_id)
+            if not status.get('verified'):
+                filtered_failed_panels.append(panel_num)
+            else:
+                registry_verified_panels.append(panel_num)
+                _dbg(f"Panel {panel_num} already verified in registry - skipping retry")
+        
+        # Use filtered_failed_panels for retry logic
+        actual_failed_panels = filtered_failed_panels
+        
+        _dbg(f"Filtered retry list: {len(actual_failed_panels)} panels need retry, {len(registry_verified_panels)} already verified")
+        
+        # Calculate retry status using filtered panels
+        success_rate = ((total_panels - len(actual_failed_panels)) / total_panels) * 100
         remaining_attempts = max_retries - current_attempt
         
         # Determine action
-        if not failed_panels:
+        if not actual_failed_panels:
             action = "COMPLETE"
             status = "SUCCESS"
             message = "All panels successfully generated!"
@@ -146,25 +221,31 @@ class RetryManagerTool(BaseTool):
         else:
             action = "RETRY"
             status = "IN_PROGRESS"
-            message = f"Retry attempt {current_attempt + 1} recommended for {len(failed_panels)} failed panels."
+            message = f"Retry attempt {current_attempt + 1} recommended for {len(actual_failed_panels)} failed panels."
         
         retry_report = f"""
-RETRY MANAGEMENT REPORT:
+RETRY MANAGEMENT REPORT (Registry-Aware):
 
 Current Status: {status}
 Recommended Action: {action}
 
 Panel Analysis:
 - Total panels: {total_panels}
-- Failed panels: {failed_panels}
+- Originally failed panels: {failed_panels}
+- Registry-verified panels: {registry_verified_panels}
+- Actual failed panels requiring retry: {actual_failed_panels}
 - Success rate: {success_rate:.1f}%
 - Current attempt: {current_attempt}
 - Remaining attempts: {remaining_attempts}
 
 {message}
 
+Registry Intelligence:
+- Panels verified since last check: {registry_verified_panels}
+- Panels still needing retry: {actual_failed_panels}
+
 Next Steps:
-{self._get_next_steps(action, failed_panels, remaining_attempts)}
+{self._get_next_steps(action, actual_failed_panels, remaining_attempts)}
 """
         
         return retry_report

@@ -375,6 +375,40 @@ class CharacterConsistencyTool(BaseTool):
             # Copy the generated image
             shutil.copy2(source_path, panel_path)
             
+            # Registry update: Log successful generation and sync
+            from .registry import update_registry_entry
+            
+            panel_id = f"panel_{panel_number}"
+            
+            # Also copy to frontend for web display
+            frontend_dir = Path("../frontend/public/comic_panels")
+            frontend_dir = frontend_dir.resolve()
+            frontend_dir.mkdir(parents=True, exist_ok=True)
+            frontend_path = frontend_dir / panel_filename
+            
+            try:
+                shutil.copy2(panel_path, frontend_path)
+                print(f"✅ Character panel also copied to frontend: {frontend_path}")
+                
+                update_registry_entry(
+                    panel_id=panel_id,
+                    backend=True,
+                    frontend=True,
+                    verified=True
+                )
+                print(f"✅ Registry updated: {panel_id} marked as verified")
+                
+            except Exception as frontend_error:
+                print(f"⚠️ Failed to copy to frontend (non-critical): {frontend_error}")
+                # Still update registry for backend success
+                update_registry_entry(
+                    panel_id=panel_id,
+                    backend=True,
+                    frontend=False,
+                    verified=False
+                )
+                print(f"✅ Registry updated: {panel_id} marked as backend-only")
+            
             # OPTIMIZATION: Save to panel cache for future use
             self._save_panel_cache(character_name, scene_description, panel_number, str(panel_path))
             

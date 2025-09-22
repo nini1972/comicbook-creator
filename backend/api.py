@@ -43,9 +43,6 @@ app.add_middleware(
 # Mount static files for serving images
 app.mount("/images", StaticFiles(directory="output"), name="images")
 
-# Mount static files for serving images
-app.mount("/images", StaticFiles(directory="output"), name="images")
-
 def sanitize_filename(name: str) -> str:
     """Sanitizes a string to be a valid filename."""
     name = name.strip().lower()

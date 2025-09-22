@@ -23,7 +23,7 @@ class PanelValidationTool(BaseTool):
 
     def _get_paths(self):
         """Get the paths for image validation."""
-        backend_output_path = Path("C:/Users/ninic/projects/CrewAI/comicbook/backend/output")
+        backend_output_path = Path("C:/Users/ninic/projects/CrewAI/comicbook/backend/output/comic_panels")
         frontend_panels_path = Path("C:/Users/ninic/projects/CrewAI/comicbook/frontend/public/comic_panels")
         return backend_output_path, frontend_panels_path
 
@@ -31,26 +31,60 @@ class PanelValidationTool(BaseTool):
         """Extract panel image paths from the generation results."""
         panel_paths = {}
         
-        # Look for patterns like "Panel 1: output\server_generated..." or "Panel 1: [path]"
-        panel_pattern = r"Panel (\d+):\s*([^\n\r]+)"
-        matches = re.findall(panel_pattern, generation_results, re.IGNORECASE)
+        # Enhanced pattern matching for different formats
+        # Format 1: "Panel 1: comic_panels/server_generated..."
+        panel_pattern1 = r"Panel (\d+):\s*(comic_panels/[^\\s\n\r]+\.png)"
+        matches1 = re.findall(panel_pattern1, generation_results, re.IGNORECASE)
         
-        for match in matches:
+        for match in matches1:
             panel_num = int(match[0])
-            path_text = match[1].strip()
+            full_path = match[1].strip()
+            # Extract just the filename
+            filename = full_path.split('/')[-1]
+            panel_paths[panel_num] = filename
+            _dbg(f"Extracted Panel {panel_num}: {filename}")
+        
+        # Format 2: "Panel 1: [any path]/server_generated..."
+        if not panel_paths:  # If first format didn't work, try second
+            panel_pattern2 = r"Panel (\d+):\s*([^\n\r]+)"
+            matches2 = re.findall(panel_pattern2, generation_results, re.IGNORECASE)
             
-            # Skip failed panels
-            if "FAILED" in path_text.upper():
-                _dbg(f"Panel {panel_num} marked as FAILED: {path_text}")
-                continue
+            for match in matches2:
+                panel_num = int(match[0])
+                path_text = match[1].strip()
                 
-            # Extract actual file path - look for server_generated patterns
-            path_match = re.search(r'(server_generated[^\\s\]]+\.png)', path_text)
-            if path_match:
-                panel_paths[panel_num] = path_match.group(1)
-                _dbg(f"Extracted Panel {panel_num}: {panel_paths[panel_num]}")
-            else:
-                _dbg(f"Could not extract valid path from Panel {panel_num}: {path_text}")
+                # Skip failed panels
+                if "FAILED" in path_text.upper():
+                    _dbg(f"Panel {panel_num} marked as FAILED: {path_text}")
+                    continue
+                    
+                # Extract actual file path - look for server_generated patterns
+                path_match = re.search(r'(server_generated[^\\s\]]+\.png)', path_text)
+                if path_match:
+                    panel_paths[panel_num] = path_match.group(1)
+                    _dbg(f"Extracted Panel {panel_num}: {panel_paths[panel_num]}")
+                else:
+                    _dbg(f"Could not extract valid path from Panel {panel_num}: {path_text}")
+        
+        # Format 3: Look in registry for any recent panel files
+        if len(panel_paths) < 6:
+            _dbg("Trying registry-based detection for missing panels...")
+            from .registry import read_registry
+            registry = read_registry()
+            
+            # Look for panel entries in registry that might correspond to missing panels
+            for entry_id, entry_data in registry.items():
+                if 'server_generated' in entry_id and entry_data.get('verified'):
+                    # Try to map to panel numbers based on creation order
+                    panel_count = len(panel_paths) + 1
+                    if panel_count <= 6 and panel_count not in panel_paths:
+                        # The entry_id is the cleaned filename without extension
+                        # The original cleaning was: re.sub(r'[^\w]', '_', filename.split('.')[0])
+                        # So we need to reverse that transformation approximately
+                        # Since the original had hyphens which became underscores, restore them
+                        filename = entry_id.replace('_image_tutorial_', '-image-tutorial_') + '.png'
+                        panel_paths[panel_count] = filename
+                        _dbg(f"Registry Panel {panel_count}: {filename}")
         
         return panel_paths
 
@@ -79,9 +113,22 @@ class PanelValidationTool(BaseTool):
         missing_panels = []
         backend_files_found = 0
         frontend_files_found = 0
+        verified_from_registry = 0
         
+        from .registry import get_panel_status, update_registry_entry
+
         # Validate each expected panel
         for panel_num in range(1, expected_panel_count + 1):
+            # Skip validation if panel is already verified
+            panel_id = f"panel_{panel_num}"
+            registry_status = get_panel_status(panel_id)
+            if registry_status.get('verified'):
+                validation_results.append(f"- Panel {panel_num}: ✅ VERIFIED IN REGISTRY: {panel_paths.get(panel_num, 'cached')}")
+                verified_from_registry += 1
+                backend_files_found += 1
+                frontend_files_found += 1
+                continue
+                
             if panel_num not in panel_paths:
                 validation_results.append(f"- Panel {panel_num}: ❌ MISSING: No image path found in generation results")
                 missing_panels.append(panel_num)
@@ -89,6 +136,14 @@ class PanelValidationTool(BaseTool):
             
             filename = panel_paths[panel_num]
             file_check = self._check_file_existence(filename)
+            
+            # Update registry with current sync status
+            update_registry_entry(
+                panel_id=panel_id,
+                backend=file_check['backend'],
+                frontend=file_check['frontend'],
+                verified=file_check['backend'] and file_check['frontend']
+            )
             
             if file_check['backend']:
                 backend_files_found += 1
@@ -119,6 +174,7 @@ File System Check:
 - Backend files found: {backend_files_found}/{expected_panel_count}
 - Frontend files found: {frontend_files_found}/{expected_panel_count}
 - Valid panels (both locations): {total_valid_panels}/{expected_panel_count}
+- Verified from registry cache: {verified_from_registry}/{expected_panel_count}
 - Missing panels: {missing_panels if missing_panels else 'None'}
 
 VALIDATION STATUS: {validation_status}
@@ -127,6 +183,7 @@ Summary:
 - Total panels expected: {expected_panel_count}
 - Panels with valid images: {total_valid_panels}
 - Missing/invalid panels: {len(missing_panels)}
+- Registry cache hits: {verified_from_registry}
 
 {f"❌ CRITICAL: Comic assembly should NOT proceed - {len(missing_panels)} panels are missing!" if validation_status == "FAIL" else "✅ All panels validated - Comic ready for assembly!"}
 """

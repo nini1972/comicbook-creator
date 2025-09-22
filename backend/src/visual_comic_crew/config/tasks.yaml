@@ -208,25 +208,25 @@ panel_validation_task:
 
 comic_assembly_task:
   description: |
-    Use the Comic Layout Designer tool to create the final comic layout.
+    Use the Comic Layout Designer tool to create the final comic layout ONLY if validation passed.
 
-    CRITICAL INSTRUCTIONS:
+    VALIDATION CHECK FIRST:
+    1. Review the panel validation task results
+    2. If validation status is FAIL, return an error message and stop
+    3. If validation status is PASS, proceed with comic assembly
+
+    COMIC ASSEMBLY (only if validation passed):
     1. Extract panel descriptions and dialogue from the story task
     2. Extract image paths from the image generation task  
     3. Call the Comic Layout Designer tool with these parameters
     4. Return ONLY the tool's markdown output - NO agent thoughts or reasoning
 
-    Your final answer must contain ONLY the comic markdown layout.
+    CRITICAL: Do NOT proceed with assembly if the panel validation failed!
   expected_output: >
-    Clean comic markdown layout with panels, images, and dialogue.
+    If validation FAILED: Error message stating validation failure and requesting manual intervention
+    If validation PASSED: Clean comic markdown layout with panels, images, and dialogue.
     NO agent thoughts, reasoning, or meta-commentary.
-    ONLY the comic content itself.
-    The tool returns a complete comic strip in markdown format with:
-    - Title and introduction
-    - Properly formatted panels with descriptions  
-    - Embedded images with correct frontend paths (/comic_panels/filename.png)
-    - Dialogue for each panel
-    - Professional presentation
+    ONLY the comic content itself or error message.
   agent: comic_assembler
   context:
     - story_creation_task
