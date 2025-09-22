@@ -28,6 +28,13 @@ class GeminiImageTool(BaseTool):
 
     def _run(self, prompt: str, base_image_paths: Optional[List[str]] = None) -> str:
         """Generate an image and return the saved path or an error string."""
+        # Explicit validation to catch common errors
+        if not isinstance(prompt, str):
+            return f"Error: Prompt must be a string, got {type(prompt).__name__}: {prompt}"
+        
+        if len(prompt.strip()) == 0:
+            return "Error: Prompt cannot be empty."
+            
         start = time.time()
         payload = {"prompt": prompt}
         if base_image_paths:

@@ -3,6 +3,8 @@ from crewai.project import CrewBase, agent, crew, task
 from .tools.gemini_image_tool import GeminiImageTool
 from .tools.comic_layout_tool import ComicLayoutTool
 from .tools.character_consistency_tool import CharacterConsistencyTool
+from .tools.orchestrator_tools import WorkflowControlTool, RetryManagerTool, StatusTrackerTool
+from .tools.panel_validation_tool import PanelValidationTool
 import traceback
 
 @CrewBase
@@ -37,6 +39,30 @@ class VisualComicCrew():
         return agent
 
     @agent
+    def evaluator(self) -> Agent:
+        print("DEBUG: Creating evaluator agent")
+        agent = Agent(
+            config=self.agents_config['evaluator'],
+            verbose=True,
+            multimodal=True,
+            tools=[PanelValidationTool()]
+        )
+        print(f"DEBUG: evaluator agent created with LLM: {agent.llm}")
+        return agent
+
+    @agent
+    def orchestrator(self) -> Agent:
+        print("DEBUG: Creating orchestrator agent")
+        agent = Agent(
+            config=self.agents_config['orchestrator'],
+            verbose=True,
+            multimodal=True,
+            tools=[WorkflowControlTool(), RetryManagerTool(), StatusTrackerTool()]
+        )
+        print(f"DEBUG: orchestrator agent created with LLM: {agent.llm}")
+        return agent
+
+    @agent
     def comic_assembler(self) -> Agent:
         print("DEBUG: Creating comic_assembler agent")
         cfg = self.agents_config.get('comic_assembler')
@@ -65,10 +91,24 @@ class VisualComicCrew():
         )
 
     @task
+    def orchestrated_generation_task(self) -> Task:
+        print("DEBUG: Creating orchestrated_generation_task")
+        return Task(
+            config=self.tasks_config['orchestrated_generation_task']
+        )
+
+    @task
     def image_generation_task(self) -> Task:
         print("DEBUG: Creating image_generation_task")
         return Task(
             config=self.tasks_config['image_generation_task']
+        )
+
+    @task
+    def panel_validation_task(self) -> Task:
+        print("DEBUG: Creating panel_validation_task")
+        return Task(
+            config=self.tasks_config['panel_validation_task']
         )
 
     @task

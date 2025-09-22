@@ -10,6 +10,55 @@ story_creation_task:
     character details, dialogue, and visual style notes
   agent: story_writer
 
+orchestrated_generation_task:
+  description: |
+    Orchestrate complete comic generation with validation and retry logic.
+
+    ORCHESTRATION WORKFLOW:
+    1. INITIAL GENERATION: Delegate to Visual Director for initial panel generation
+    2. VALIDATION CHECK: Review generation results and validate panel completeness
+    3. RETRY LOGIC: For any failed or missing panels:
+       - Identify specific failed panel numbers
+       - Delegate regeneration of ONLY failed panels to Visual Director
+       - Maximum 3 retry attempts per panel
+       - Continue until all panels succeed or max retries reached
+    4. FINAL VALIDATION: Ensure all panels are complete before proceeding
+
+    RETRY STRATEGY:
+    - Track failed panels individually
+    - Regenerate only missing/failed panels (not all panels)
+    - Provide clear feedback to Visual Director about what needs regeneration
+    - Implement progressive retry with detailed failure analysis
+
+    QUALITY CONTROL:
+    - Work with Evaluator to validate panel existence
+    - Ensure no fabricated filenames are accepted
+    - Maintain detailed logs of retry attempts and results
+    - Report final success/failure status with specific details
+
+    RESOURCE MANAGEMENT:
+    - Maximum retry limit: 3 attempts per panel
+    - Total generation timeout: 10 minutes
+    - Graceful degradation for persistent failures
+    - Clear error reporting for manual intervention
+
+    SUCCESS CRITERIA:
+    - ALL panels (1-6) successfully generated with real image files
+    - All images exist in both backend and frontend locations
+    - Panel validation returns 100% PASS status
+    - No fabricated or non-existent image references
+  expected_output: >
+    Complete orchestration report with:
+    - Initial generation attempt results
+    - Retry attempts and outcomes for failed panels
+    - Final panel generation status (SUCCESS/PARTIAL/FAILED)
+    - Detailed panel-by-panel validation results
+    - Total attempts, successes, and failures
+    - Clear recommendation for next steps (proceed to assembly or manual intervention)
+  agent: orchestrator
+  context:
+    - story_creation_task
+
 image_generation_task:
   description: |
     Generate comic panel images based on the story script with consistent character appearances using Option 6 approach.
@@ -56,6 +105,17 @@ image_generation_task:
     - If a tool call fails, record "FAILED" for that panel
     - Continue with remaining panels even if early ones fail
 
+    CRITICAL TOOL ARGUMENT FORMAT:
+    When calling Gemini Image Generator, use EXACTLY this format:
+    - prompt: "your description text here" (simple string, NOT a dictionary)
+    - base_image_paths: null (or list of paths if needed)
+
+    INCORRECT FORMAT (causes validation errors):
+    - prompt: {"description": "text", "type": "str"} ❌ 
+
+    CORRECT FORMAT:
+    - prompt: "A whimsical comic panel showing..." ✅
+
     MANDATORY FINAL SUMMARY:
     You MUST provide a complete summary with:
     - Character references: [list with success/failure status]
@@ -90,6 +150,62 @@ image_generation_task:
   context:
     - story_creation_task
 
+panel_validation_task:
+  description: |
+    Validate that ALL comic panels referenced in the image generation results have
+    corresponding actual image files in the filesystem before allowing comic assembly.
+
+    VALIDATION REQUIREMENTS:
+    1. Parse the image generation task results to extract all panel image paths
+    2. For EACH panel image path referenced:
+       - Check if the file exists in the backend output folder
+       - Check if the file exists in the frontend comic_panels folder
+       - Verify the file is not empty/corrupted
+    3. Count total panels expected vs panels with valid images
+    4. Identify any missing or invalid panel images
+
+    VALIDATION CHECKS:
+    - Panel completeness: All panels (1-6) have image references
+    - File existence: All referenced images exist in filesystem
+    - Path validation: All paths are real (not fabricated like "panel2.png")
+    - Accessibility: Images are accessible for frontend display
+
+    MANDATORY VALIDATION REPORT:
+    You MUST provide a detailed validation report with:
+
+    Panel Validation Results:
+    - Panel 1: [✅ VALID: path] OR [❌ MISSING: reason]
+    - Panel 2: [✅ VALID: path] OR [❌ MISSING: reason]
+    - Panel 3: [✅ VALID: path] OR [❌ MISSING: reason]
+    - Panel 4: [✅ VALID: path] OR [❌ MISSING: reason]
+    - Panel 5: [✅ VALID: path] OR [❌ MISSING: reason]
+    - Panel 6: [✅ VALID: path] OR [❌ MISSING: reason]
+
+    File System Check:
+    - Backend files found: [number]
+    - Frontend files found: [number]
+    - Missing files: [list of missing panels]
+
+    VALIDATION STATUS: [PASS/FAIL]
+
+    If FAIL: Stop the comic assembly process and report missing panels
+    If PASS: Allow comic to proceed to assembly
+
+    CRITICAL: Never approve comics with missing panel images!
+  expected_output: >
+    A comprehensive validation report showing:
+    - Detailed panel-by-panel validation results
+    - File system verification status
+    - Overall PASS/FAIL determination
+    - Specific missing panels if any failures
+    - Clear recommendation for next steps
+
+    Only comics with 100% panel validation should be marked as PASS.
+  agent: evaluator
+  context:
+    - story_creation_task
+    - orchestrated_generation_task
+
 comic_assembly_task:
   description: |
     Use the Comic Layout Designer tool to create the final comic layout.
@@ -114,4 +230,5 @@ comic_assembly_task:
   agent: comic_assembler
   context:
     - story_creation_task
-    - image_generation_task
+    - orchestrated_generation_task
+    - panel_validation_task
