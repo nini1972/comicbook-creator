@@ -119,7 +119,7 @@ def extract_panel_paths_from_generation_results(generation_results: str) -> Dict
     
     panel_paths = {}
     
-    # Look for patterns like "Panel 1: server_generated..." 
+    # Look for patterns like "Panel 1: server_generated..." or "Panel 1: consistent_panel..."
     panel_pattern = r"Panel (\d+):\s*([^\n\r]+)"
     matches = re.findall(panel_pattern, generation_results, re.IGNORECASE)
     
@@ -128,13 +128,20 @@ def extract_panel_paths_from_generation_results(generation_results: str) -> Dict
         path_text = match[1].strip()
         
         # Skip failed panels
-        if "FAILED" in path_text.upper():
+        if "FAILED" in path_text.upper() or "ERROR" in path_text.upper():
             continue
             
-        # Extract actual file path - look for server_generated patterns  
-        path_match = re.search(r'(server_generated[^\s\]]+\.png)', path_text)
+        # Extract actual file path - look for both server_generated and consistent_panel patterns  
+        path_match = re.search(r'(server_generated[^\s\]]+\.png|consistent_panel[^\s\]]+\.png)', path_text)
         if path_match:
             panel_id = f"panel_{panel_num}"
             panel_paths[panel_id] = path_match.group(1)
+            continue
+            
+        # Also check for "Filename: xxx.png" pattern within this panel's text
+        filename_match = re.search(r'Filename:\s*([^\s\n\r]+\.png)', path_text, re.IGNORECASE)
+        if filename_match:
+            panel_id = f"panel_{panel_num}"
+            panel_paths[panel_id] = filename_match.group(1)
     
     return panel_paths

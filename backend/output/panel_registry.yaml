@@ -1,31 +1,91 @@
 panel_1:
+  backend_synced: true
+  filename: server_generated_gemini-image-tutorial_1758722508432.png
+  frontend_synced: true
+  verified: true
+panel_10:
   backend_synced: false
-  filename: panel_1.png
+  filename: TBD
+  frontend_synced: false
+  verified: false
+panel_11:
+  backend_synced: false
+  filename: TBD
+  frontend_synced: false
+  verified: false
+panel_12:
+  backend_synced: false
+  filename: TBD
+  frontend_synced: false
+  verified: false
+panel_13:
+  backend_synced: false
+  filename: TBD
+  frontend_synced: false
+  verified: false
+panel_14:
+  backend_synced: false
+  filename: TBD
+  frontend_synced: false
+  verified: false
+panel_15:
+  backend_synced: false
+  filename: TBD
+  frontend_synced: false
+  verified: false
+panel_16:
+  backend_synced: false
+  filename: TBD
+  frontend_synced: false
+  verified: false
+panel_17:
+  backend_synced: false
+  filename: TBD
+  frontend_synced: false
+  verified: false
+panel_18:
+  backend_synced: false
+  filename: TBD
   frontend_synced: false
   verified: false
 panel_2:
-  backend_synced: false
-  filename: panel_2.png
-  frontend_synced: false
-  verified: false
+  backend_synced: true
+  filename: server_generated_gemini-image-tutorial_1758722283828.png
+  frontend_synced: true
+  verified: true
 panel_3:
-  backend_synced: false
-  filename: panel_3.png
-  frontend_synced: false
-  verified: false
+  backend_synced: true
+  filename: consistent_panel_003_nyra_1758722295640.png
+  frontend_synced: true
+  verified: true
 panel_4:
-  backend_synced: false
-  filename: panel_4.png
-  frontend_synced: false
-  verified: false
+  backend_synced: true
+  filename: server_generated_gemini-image-tutorial_1758722313269.png
+  frontend_synced: true
+  verified: true
 panel_5:
+  backend_synced: true
+  filename: consistent_panel_005_nyra_1758722325937.png
+  frontend_synced: true
+  verified: true
+panel_6:
+  backend_synced: true
+  filename: server_generated_gemini-image-tutorial_1758722343822.png
+  frontend_synced: true
+  verified: true
+panel_7:
   backend_synced: false
-  filename: panel_5.png
+  filename: TBD
   frontend_synced: false
   verified: false
-panel_6:
+panel_8:
+  backend_synced: true
+  filename: consistent_panel_008_vex_1758722382309.png
+  frontend_synced: true
+  verified: true
+panel_9:
   backend_synced: false
-  filename: panel_6.png
+  filename: TBD
   frontend_synced: false
   verified: false
 server_generated_gemini_image_tutorial_17585820907:

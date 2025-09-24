@@ -44,13 +44,15 @@ class PanelValidationTool(BaseTool):
         """Validate all comic panels and return comprehensive validation report."""
         
         _dbg(f"Starting panel validation with panel_map: {panel_map}")
+        print(f"PANEL_VALIDATION_TOOL_RECEIVED_MAP: {panel_map}")  # DEBUG
         
         # Validate input
         if not panel_map or not isinstance(panel_map, dict):
             return "❌ ERROR: Invalid panel_map provided. Must be a dictionary mapping panel numbers to filenames."
         
         # Check for guessed/default filenames that indicate parsing failure
-        guessed_patterns = ['panel_', 'Panel_', 'panel\d+\.png', 'Panel\d+\.png']
+        # Only flag simple guessed patterns like "panel_1.png" but not complex generated filenames
+        guessed_patterns = [r'^panel_\d+\.png$', r'^Panel_\d+\.png$', r'^panel\d+\.png$', r'^Panel\d+\.png$']
         for panel_num, filename in panel_map.items():
             if isinstance(filename, str):
                 for pattern in guessed_patterns:

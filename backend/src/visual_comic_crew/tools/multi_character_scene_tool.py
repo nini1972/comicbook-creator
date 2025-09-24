@@ -40,14 +40,17 @@ class MultiCharacterSceneTool(BaseTool):
         if not char_ref_dir.exists():
             return None
 
-        # Look for character reference files
-        for ref_file in char_ref_dir.glob(f"{character_name.lower().replace(' ', '_')}_reference.png"):
-            return ref_file
+        # Try multiple filename formats
+        possible_names = [
+            f"{character_name.lower().replace(' ', '_')}_reference.png",  # unit_734_reference.png
+            f"{character_name.lower().replace(' ', ' ')}_reference.png",  # unit 734_reference.png
+            f"{character_name.lower()}_reference.png",  # unit734_reference.png
+        ]
 
-        # Also try exact filename match
-        exact_path = char_ref_dir / f"{character_name.lower().replace(' ', '_')}_reference.png"
-        if exact_path.exists():
-            return exact_path
+        for filename in possible_names:
+            ref_file = char_ref_dir / filename
+            if ref_file.exists():
+                return ref_file
 
         return None
 

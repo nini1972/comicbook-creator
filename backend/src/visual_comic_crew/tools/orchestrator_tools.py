@@ -14,6 +14,7 @@ class WorkflowControlSchema(BaseModel):
     panel_numbers: List[int] = Field(default=[], description="Specific panel numbers to regenerate (for retry action)")
     story_context: str = Field(default="", description="Story context for generation")
     max_attempts: int = Field(default=3, description="Maximum retry attempts per panel")
+    expected_panels: int = Field(default=6, description="Expected number of panels for status checking")
 
 class RetryManagerSchema(BaseModel):
     """Input for RetryManagerTool."""
@@ -31,7 +32,7 @@ class WorkflowControlTool(BaseTool):
     args_schema: Type[BaseModel] = WorkflowControlSchema
 
     def _run(self, action: str, target_agent: str = "visual_director", panel_numbers: List[int] = [], 
-             story_context: str = "", max_attempts: int = 3) -> str:
+             story_context: str = "", max_attempts: int = 3, expected_panels: int = 6) -> str:
         """Execute workflow control actions."""
         
         _dbg(f"Executing action: {action}")
@@ -39,7 +40,7 @@ class WorkflowControlTool(BaseTool):
         if action == "delegate_generation":
             return self._delegate_generation(target_agent, story_context)
         elif action == "check_status":
-            return self._check_generation_status()
+            return self._check_generation_status(expected_panels)
         elif action == "retry_failed_panels":
             return self._retry_failed_panels(panel_numbers, story_context, max_attempts)
         else:
@@ -89,76 +90,61 @@ class WorkflowControlTool(BaseTool):
         """
         return delegation_instruction
 
-    def _check_generation_status(self) -> str:
-        """Check status of current generation process with sync polling."""
-        _dbg("Checking generation status with sync verification")
-        
-        # Poll for sync before validation (Patch 1)
-        from .sync import poll_for_image_sync, update_panel_registry, extract_panel_paths_from_generation_results
-        
-        # Note: In real implementation, you would get generation_results from previous task
-        # For now, we'll create a placeholder that can be enhanced when integrated
+    def _check_generation_status(self, expected_panels: int = 6) -> str:
+        """Check status of current generation process by querying registry."""
+        _dbg("Checking generation status via registry")
+
+        from .registry import read_registry, get_unverified_panels
+
         try:
-            # Hypothetical panel paths (this would come from actual generation results)
-            panel_paths = {
-                f"panel_{i}": f"server_generated_panel_{i:03d}.png"
-                for i in range(1, 7)
-            }
-            
-            _dbg(f"Polling sync status for {len(panel_paths)} panels")
-            
-            # Poll for sync
-            sync_status = poll_for_image_sync(
-                panel_paths,
-                backend_dir="output/comic_panels",
-                frontend_dir="frontend/public/comic_panels",
-                retries=3,
-                delay=1.5
-            )
-            
-            # Update registry
-            update_panel_registry(sync_status)
-            
-            # Generate enhanced status report
-            verified_panels = [pid for pid, status in sync_status.items() if status['verified']]
-            pending_panels = [pid for pid, status in sync_status.items() if not status['verified']]
-            
+            registry = read_registry()
+            unverified_panel_nums = get_unverified_panels(expected_panels)
+
+            # Count verified panels
+            verified_panels = []
+            all_panels_status = []
+
+            for i in range(1, expected_panels + 1):
+                panel_id = f"panel_{i}"
+                status = registry.get(panel_id, {})
+
+                if status.get('verified'):
+                    verified_panels.append(panel_id)
+                else:
+                    all_panels_status.append(f"{panel_id}: {status}")
+
             status_check = f"""
-STATUS CHECK WITH SYNC VERIFICATION:
+REGISTRY-BASED STATUS CHECK:
 
-Sync Status:
-- Verified panels: {len(verified_panels)}/6
-- Pending sync: {len(pending_panels)}/6
-- Registry updated: ✅
+Overall Status:
+- Expected panels: {expected_panels}
+- Verified panels: {len(verified_panels)}/{expected_panels}
+- Unverified panels: {len(unverified_panel_nums)}/{expected_panels}
 
-Please provide current generation status including:
-1. Total panels attempted  
-2. Successfully generated panels with paths
-3. Failed panels with failure reasons
-4. Current retry count
-5. Next recommended action
+Verified Panels: {verified_panels}
+Unverified Panel Numbers: {unverified_panel_nums}
 
-Sync-verified panels: {verified_panels}
-Pending sync panels: {pending_panels}
+Detailed Status:
+{chr(10).join(all_panels_status)}
 
-Format as structured report for easy parsing.
+Next Steps:
 """
-            
+
+            if not unverified_panel_nums:
+                status_check += "✅ All panels verified! Ready for comic assembly."
+            else:
+                status_check += f"🔄 Generation needed for panels: {unverified_panel_nums}"
+
         except Exception as e:
-            _dbg(f"Sync polling failed: {e}")
-            status_check = """
-STATUS CHECK REQUEST:
+            _dbg(f"Registry check failed: {e}")
+            status_check = f"""
+REGISTRY STATUS CHECK FAILED:
 
-Please provide current generation status including:
-1. Total panels attempted
-2. Successfully generated panels with paths  
-3. Failed panels with failure reasons
-4. Current retry count
-5. Next recommended action
+Error: {e}
 
-Format as structured report for easy parsing.
+Please check registry file at output/panel_registry.yaml
 """
-            
+
         return status_check
 
     def _retry_failed_panels(self, panel_numbers: List[int], story_context: str, max_attempts: int) -> str:

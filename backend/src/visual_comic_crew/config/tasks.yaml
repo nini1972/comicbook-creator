@@ -61,108 +61,27 @@ orchestrated_generation_task:
 
 image_generation_task:
   description: |
-    Generate comic panel images based on the story script with consistent character appearances using Option 6 approach.
+    Generate comic panel images based on the story script.
 
-    STEP 1 - CHARACTER CONSISTENCY SETUP (Option 6 Approach):
-    If the story contains named characters, FIRST attempt to create character references:
-    1. Identify all main characters from the story
-    2. For EACH character, use the Character Consistency Tool with action "create_character":
-       - character_name: The character's name
-       - character_description: Detailed physical description from the story
-       - existing_image_path: (optional) Path to existing character image if available
-    3. If character reference creation FAILS, note the failure and continue with panel generation
-    4. DO NOT stop the entire process if character reference creation fails
+    PROCESS:
+    1. Create character references for any named characters using Character Consistency Tool
+    2. Generate ALL panels using appropriate tools:
+       - Single character: Character Consistency Tool (action="generate_scene")
+       - Multiple characters: Multi-Character Scene Tool
+       - No characters: Gemini Image Generator
+    3. Use actual tool-returned paths only (never fabricate filenames)
 
-    STEP 2 - PANEL GENERATION (MANDATORY FOR ALL PANELS):
-    You MUST generate ALL panels described in the story. For each panel:
-    1. Extract the visual description for that panel
-    2. Identify which named characters appear in this panel
-    3. Choose the CORRECT tool based on character count:
-       - SINGLE CHARACTER: Use Character Consistency Tool with action "generate_scene"
-       - MULTIPLE CHARACTERS (2+): Use Multi-Character Scene Tool
-       - NO NAMED CHARACTERS: Use Gemini Image Generator
-       - REFINING EXISTING IMAGE: Use Image Refinement Tool
-    4. For failed character references, include detailed character descriptions in prompts
-    5. You MUST call the actual tool and record the REAL returned image path
-    6. NEVER fabricate or make up image paths - only use paths returned by tools
+    REQUIREMENTS:
+    - Generate ALL panels described in the story
+    - Use correct tool based on character count in each panel
+    - Record real image paths returned by tools
+    - Continue with remaining panels if any fail
 
-    TOOL SELECTION CRITERIA:
-    - CharacterConsistencyTool: Single character scenes with existing character references
-    - MultiCharacterSceneTool: Scenes requiring 2+ characters using multiple character references
-    - ImageRefinementTool: Modifying existing panels with specific refinement requirements
-    - GeminiImageTool: Scenes with no named characters OR fallback when character tools fail
-
-    TOOL CALL FORMATS:
-    - CharacterConsistencyTool: action="generate_scene", character_name="Name", scene_description="Description", panel_number=X
-    - MultiCharacterSceneTool: character_names=["Name1", "Name2"], scene_description="Description", panel_number=X
-    - ImageRefinementTool: base_image_path="path/to/image.png", refinement_prompt="How to modify", panel_number=X
-    - GeminiImageTool: prompt="Panel X: Description", base_image_paths=null
-
-    IMPORTANT: All tools use the same Gemini server endpoint (generate-image) but with different parameters:
-    - CharacterConsistencyTool: Uses single base_image_paths for character reference
-    - MultiCharacterSceneTool: Uses multiple base_image_paths for character composition
-    - ImageRefinementTool: Uses single base_image_paths with refinement prompt
-    - GeminiImageTool: Uses no base images, just prompt
-
-    ERROR HANDLING REQUIREMENTS:
-    - If character reference creation fails, continue with direct image generation
-    - If a panel generation fails, note it and continue with remaining panels
-    - ALWAYS attempt to generate ALL panels - never stop early
-    - Use fallback methods when primary methods fail
-    - For failed character references, include detailed character descriptions in Gemini prompts
-
-    FALLBACK STRATEGY FOR CHARACTER CONSISTENCY:
-    When character references fail, enhance your Gemini Image Generator prompts with:
-    - Detailed physical description of the character from the story
-    - Consistent style notes (e.g., "same character as previous panels")
-    - Visual continuity cues (clothing, facial features, build, etc.)
-
-    TOOL CALL REQUIREMENTS:
-    - You MUST actually call tools for each panel generation
-    - NEVER make up fake filenames like "panel2.png", "panel3.png" etc.
-    - ONLY use image paths actually returned by the tools
-    - If a tool call fails, record "FAILED" for that panel
-    - Continue with remaining panels even if early ones fail
-
-    CRITICAL TOOL ARGUMENT FORMAT:
-    When calling Gemini Image Generator, use EXACTLY this format:
-    - prompt: "Panel X: your description text here" (simple string, NOT a dictionary, where X is the panel number)
-    - base_image_paths: null (or list of paths if needed)
-
-    INCORRECT FORMAT (causes validation errors):
-    - prompt: {"description": "text", "type": "str"} ❌
-
-    CORRECT FORMAT:
-    - prompt: "Panel X: A whimsical comic panel showing..." ✅ (where X is the actual panel number)
-
-    MANDATORY FINAL SUMMARY:
-    You MUST provide a complete summary with:
-    - Character references: [list with success/failure status]
-    - Panel generation results for EACH panel (1 through total):
-      - Panel X: [actual tool-returned path OR "FAILED" with reason]
-    - Total successful generations vs total attempted
-    - Specific failure reasons for any failed panels
-
-    Ensure visual continuity and comic art style (same characters, styles, palette).
-    Maintain consistent lighting and color palette.
+    OUTPUT: JSON object mapping panel numbers to actual filenames
+    Example: {"1": "comic_panels/image1.png", "2": "comic_panels/image2.png"}
   expected_output: >
-    A complete summary with ACTUAL results only (no fabricated data):
-
-    Character References:
-    - [Character Name]: [SUCCESS: path] OR [FAILED: reason]
-
-    Panel Generation Results:
-    - Panel 1: [actual tool-returned path OR "FAILED: reason"]
-    - Panel 2: [actual tool-returned path OR "FAILED: reason"] 
-    - Panel 3: [actual tool-returned path OR "FAILED: reason"]
-    - Panel 4: [actual tool-returned path OR "FAILED: reason"]
-    - Panel 5: [actual tool-returned path OR "FAILED: reason"]
-    - Panel 6: [actual tool-returned path OR "FAILED: reason"]
-
-    CRITICAL: The final output of this task MUST be ONLY a JSON object mapping each panel number (e.g., "1", "2") to its generated image filename (e.g., "comic_panels/image_name.png").
-    Example: {"1": "comic_panels/server_generated_gemini-image-tutorial_1758628204412.png", "2": "comic_panels/server_generated_gemini-image-tutorial_1758628220627.png", "3": "FAILED: Timeout"}
-
-    Do NOT include any other text, explanations, or formatting. The output must be valid JSON that can be parsed directly.
+    JSON object mapping each panel number to its generated image filename.
+    Example: {"1": "comic_panels/server_generated_gemini-image-tutorial_1758628204412.png", "2": "comic_panels/server_generated_gemini-image-tutorial_1758628220627.png"}
   agent: visual_director
   context:
     - story_creation_task

@@ -59,7 +59,7 @@ Let's create wonders together with the power and simplicity of crewAI.
 (Get-NetTCPConnection -LocalPort 8001).OwningProcess
 
 ### to kill Process ID
-Stop-Process -Id [PID] -Force 
+stop-process -Id <ProcessID> -Force
 
 ## stop frontend
-Stop-Process -Id (Get-NetTCPConnection -LocalPort 3000).OwningProcess -Force
+stop-process -Id (Get-NetTCPConnection -LocalPort 3000).OwningProcess -Force
