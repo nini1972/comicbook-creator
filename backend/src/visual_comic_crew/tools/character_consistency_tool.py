@@ -328,17 +328,17 @@ class CharacterConsistencyTool(BaseTool):
             temp_ref_full_path = os.path.join(gemini_ref_path, temp_ref_name)
             shutil.copy2(reference_path, temp_ref_full_path)
             
-            # Use relative path that Gemini server can access
-            server_relative_path = f"temp_character_refs/{temp_ref_name}"
+            # Use the absolute path that the Gemini server can access
+            server_absolute_path = temp_ref_full_path
             
             # Option 6 approach: place character from reference into new scene
-            scene_prompt = f"{scene_description}"
+            scene_prompt = f"Panel {panel_number}: {scene_description}"
             
             print(f"🎬 Generating panel {panel_number} with {character_name}...")
-            print(f"🎭 Copied reference to Gemini server directory: {server_relative_path}")
+            print(f"🎭 Using absolute reference for Gemini server: {server_absolute_path}")
             
             # OPTIMIZATION: Use single-call mode to prevent duplicate generation
-            result = self._generate_image_via_server(scene_prompt, [server_relative_path], single_call=True)
+            result = self._generate_image_via_server(scene_prompt, [server_absolute_path], single_call=True)
             
             if result.startswith("❌"):
                 # Clean up temporary file on error
@@ -366,7 +366,7 @@ class CharacterConsistencyTool(BaseTool):
                 return f"❌ Generated panel not found at {source_image_path}"
             
             # Create filename for consistent panel
-            panel_filename = f"consistent_panel_{panel_number:03d}_{character_key}.png"
+            panel_filename = f"consistent_panel_{panel_number:03d}_{character_key}_{int(time.time() * 1000)}.png"
             panel_path = Path("output/comic_panels") / panel_filename
             
             # Ensure comic_panels directory exists
@@ -392,6 +392,7 @@ class CharacterConsistencyTool(BaseTool):
                 
                 update_registry_entry(
                     panel_id=panel_id,
+                    filename=panel_filename,
                     backend=True,
                     frontend=True,
                     verified=True
@@ -403,6 +404,7 @@ class CharacterConsistencyTool(BaseTool):
                 # Still update registry for backend success
                 update_registry_entry(
                     panel_id=panel_id,
+                    filename=panel_filename,                    
                     backend=True,
                     frontend=False,
                     verified=False

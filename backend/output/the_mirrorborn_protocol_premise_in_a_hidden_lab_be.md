@@ -1,0 +1,1 @@
+Error: Assembly halted. The panel validation check failed because all 6 required image files are missing. Please re-run the image generation task and ensure all panel files are present before attempting assembly again.

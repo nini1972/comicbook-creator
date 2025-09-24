@@ -15,7 +15,7 @@ def poll_for_image_sync(panel_paths: Dict[str, str],
                        backend_dir: str = "output/comic_panels",
                        frontend_dir: str = "frontend/public/comic_panels", 
                        retries: int = 3, 
-                       delay: float = 1.5) -> Dict[str, Dict[str, bool]]:
+                       delay: float = 2.5) -> Dict[str, Dict[str, bool]]:
     """
     Poll for image synchronization between backend and frontend directories.
     

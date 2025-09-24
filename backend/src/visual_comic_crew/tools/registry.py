@@ -17,23 +17,43 @@ def read_registry() -> dict:
     with open(REGISTRY_PATH, 'r') as f:
         return yaml.safe_load(f) or {}
 
-def update_registry_entry(panel_id: str, backend: bool, frontend: bool, verified: bool):
+def update_registry_entry(panel_id: str, filename: str = None, backend: bool = None, frontend: bool = None, verified: bool = None):
     """Update a single panel entry in the registry."""
     _ensure_registry_exists()
     registry = read_registry()
-    registry[panel_id] = {
-        'backend_synced': backend,
-        'frontend_synced': frontend,
-        'verified': verified
-    }
+    
+    if panel_id not in registry:
+        registry[panel_id] = {}
+
+    if filename is not None:
+        registry[panel_id]['filename'] = filename
+    if backend is not None:
+        registry[panel_id]['backend_synced'] = backend
+    if frontend is not None:
+        registry[panel_id]['frontend_synced'] = frontend
+    if verified is not None:
+        registry[panel_id]['verified'] = verified
+        
     with open(REGISTRY_PATH, 'w') as f:
         yaml.dump(registry, f)
-    print(f"[Registry] Updated {panel_id}: backend={backend}, frontend={frontend}, verified={verified}")
+    
+    status_parts = []
+    if filename is not None:
+        status_parts.append(f"filename={filename}")
+    if backend is not None:
+        status_parts.append(f"backend={backend}")
+    if frontend is not None:
+        status_parts.append(f"frontend={frontend}")
+    if verified is not None:
+        status_parts.append(f"verified={verified}")
+        
+    print(f"[Registry] Updated {panel_id}: {', '.join(status_parts)}")
 
 def get_panel_status(panel_id: str) -> dict:
     """Get sync status for a specific panel."""
     registry = read_registry()
     return registry.get(panel_id, {
+        'filename': None,
         'backend_synced': False,
         'frontend_synced': False,
         'verified': False

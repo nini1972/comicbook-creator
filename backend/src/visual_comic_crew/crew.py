@@ -3,6 +3,8 @@ from crewai.project import CrewBase, agent, crew, task
 from .tools.gemini_image_tool import GeminiImageTool
 from .tools.comic_layout_tool import ComicLayoutTool
 from .tools.character_consistency_tool import CharacterConsistencyTool
+from .tools.multi_character_scene_tool import MultiCharacterSceneTool
+from .tools.image_refinement_tool import ImageRefinementTool
 from .tools.orchestrator_tools import WorkflowControlTool, RetryManagerTool, StatusTrackerTool
 from .tools.panel_validation_tool import PanelValidationTool
 import traceback
@@ -33,7 +35,7 @@ class VisualComicCrew():
             config=self.agents_config['visual_director'],
             verbose=True,
             multimodal=True,
-            tools=[GeminiImageTool(), CharacterConsistencyTool()]
+            tools=[GeminiImageTool(), CharacterConsistencyTool(), MultiCharacterSceneTool(), ImageRefinementTool()]
         )
         print(f"DEBUG: visual_director agent created with LLM: {agent.llm}")
         return agent

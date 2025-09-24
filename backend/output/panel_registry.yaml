@@ -1,27 +1,33 @@
 panel_1:
-  backend_synced: true
-  frontend_synced: true
-  verified: true
+  backend_synced: false
+  filename: panel_1.png
+  frontend_synced: false
+  verified: false
 panel_2:
-  backend_synced: true
-  frontend_synced: true
-  verified: true
+  backend_synced: false
+  filename: panel_2.png
+  frontend_synced: false
+  verified: false
 panel_3:
-  backend_synced: true
-  frontend_synced: true
-  verified: true
+  backend_synced: false
+  filename: panel_3.png
+  frontend_synced: false
+  verified: false
 panel_4:
-  backend_synced: true
-  frontend_synced: true
-  verified: true
+  backend_synced: false
+  filename: panel_4.png
+  frontend_synced: false
+  verified: false
 panel_5:
-  backend_synced: true
-  frontend_synced: true
-  verified: true
+  backend_synced: false
+  filename: panel_5.png
+  frontend_synced: false
+  verified: false
 panel_6:
-  backend_synced: true
-  frontend_synced: true
-  verified: true
+  backend_synced: false
+  filename: panel_6.png
+  frontend_synced: false
+  verified: false
 server_generated_gemini_image_tutorial_17585820907:
   backend_synced: true
   frontend_synced: true
@@ -175,6 +181,54 @@ server_generated_gemini_image_tutorial_17585835734:
   frontend_synced: true
   verified: true
 server_generated_gemini_image_tutorial_17585835800:
+  backend_synced: true
+  frontend_synced: true
+  verified: true
+server_generated_gemini_image_tutorial_17586183181:
+  backend_synced: true
+  frontend_synced: true
+  verified: true
+server_generated_gemini_image_tutorial_17586183270:
+  backend_synced: true
+  frontend_synced: true
+  verified: true
+server_generated_gemini_image_tutorial_17586183703:
+  backend_synced: true
+  frontend_synced: true
+  verified: true
+server_generated_gemini_image_tutorial_17586183822:
+  backend_synced: true
+  frontend_synced: true
+  verified: true
+server_generated_gemini_image_tutorial_17586186441:
+  backend_synced: true
+  frontend_synced: true
+  verified: true
+server_generated_gemini_image_tutorial_17586186515:
+  backend_synced: true
+  frontend_synced: true
+  verified: true
+server_generated_gemini_image_tutorial_17586186932:
+  backend_synced: true
+  frontend_synced: true
+  verified: true
+server_generated_gemini_image_tutorial_17586187000:
+  backend_synced: true
+  frontend_synced: true
+  verified: true
+server_generated_gemini_image_tutorial_17586187096:
+  backend_synced: true
+  frontend_synced: true
+  verified: true
+server_generated_gemini_image_tutorial_17586187173:
+  backend_synced: true
+  frontend_synced: true
+  verified: true
+server_generated_gemini_image_tutorial_17586188516:
+  backend_synced: true
+  frontend_synced: true
+  verified: true
+server_generated_gemini_image_tutorial_17586188587:
   backend_synced: true
   frontend_synced: true
   verified: true

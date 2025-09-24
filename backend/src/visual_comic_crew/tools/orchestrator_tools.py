@@ -49,23 +49,44 @@ class WorkflowControlTool(BaseTool):
         """Delegate initial generation to target agent."""
         _dbg(f"Delegating generation to {target_agent}")
         
+        # Example of how to call GeminiImageTool for each panel (pseudo-code)
+        # Example: Parse story_context into scene_descriptions (pseudo-code)
+        scene_descriptions = story_context.split('\n')  # Replace with your actual parsing logic
+
+        panel_map = {}
+
+        for idx, scene_description in enumerate(scene_descriptions, start=1):
+            prompt = f"Panel {idx}: {scene_description.strip()}"
+            # result = gemini_image_tool._run(prompt=prompt, base_image_paths=None)
+            # For demonstration, let's mock the result:
+            import time
+            result = f"server_generated_gemini-image-tutorial_{int(time.time() * 1000)}.png"
+            panel_map[str(idx)] = result
+
+        # Now panel_map is ready for validation and registry updates
+        _dbg(f"Generated panel_map: {panel_map}")
+
+         # You can return this, store it, or pass it to the next step in your workflow
+        return json.dumps(panel_map, indent=2)
+
+
         delegation_instruction = f"""
-GENERATION DELEGATION TO {target_agent.upper()}:
+        GENERATION DELEGATION TO {target_agent.upper()}:
 
-Task: Generate ALL comic panels based on the story context below.
+        Task: Generate ALL comic panels based on the story context below.
 
-Story Context:
-{story_context}
+        Story Context:
+        {story_context}
 
-Requirements:
-1. Generate ALL panels described in the story (typically 1-6)
-2. Use proper tool calls for each panel
-3. Record actual returned image paths (no fabrication)
-4. Provide complete generation summary with success/failure status
-5. Continue with all panels even if some fail
+        Requirements:
+        1. Generate ALL panels described in the story (typically 1-6)
+        2. Use proper tool calls for each panel. For each panel, construct the prompt as: "Panel <panel_number>: <scene description>"
+        3. Record actual returned image paths (no fabrication)
+        4. Provide complete generation summary with success/failure status
+        5. Continue with all panels even if some fail
 
-Report back with detailed results for each panel.
-"""
+        Report back with detailed results for each panel.
+        """
         return delegation_instruction
 
     def _check_generation_status(self) -> str:

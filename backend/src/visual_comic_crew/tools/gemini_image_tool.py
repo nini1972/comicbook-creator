@@ -6,6 +6,7 @@ import os
 import time
 import shutil
 import re
+from pathlib import Path
 
 # Simple helper for debug prints (could be replaced with logging module later)
 def _dbg(msg: str):
@@ -13,14 +14,14 @@ def _dbg(msg: str):
 
 class GeminiImageToolSchema(BaseModel):
     """Input for GeminiImageTool."""
-    prompt: str = Field(..., description="The detailed prompt for image generation.")
+    prompt: str = Field(..., description="The detailed prompt for image generation. The prompt should refer to the panel number and include all relevant details.")
     base_image_paths: Optional[List[str]] = Field(None, description="Optional list of local file paths for base images to be used as reference.")
 
 class GeminiImageTool(BaseTool):
     name: str = "Gemini Image Generator"
     description: str = (
         "Generates a comic panel image using the local image server (Gemini Flash). "
-        "Provide a detailed prompt including characters, style, perspective, and mood."
+        "Provide a detailed prompt including panel number, characters, style, perspective, and mood."
     )
     args_schema: Type[BaseModel] = GeminiImageToolSchema
     # Allow override via environment variable GEMINI_IMAGE_SERVER_URL
@@ -38,7 +39,9 @@ class GeminiImageTool(BaseTool):
         start = time.time()
         payload = {"prompt": prompt}
         if base_image_paths:
-            payload["base_image_paths"] = base_image_paths
+            # Convert any relative paths to absolute paths so Gemini server can find the files
+            abs_paths = [str(Path(p).resolve()) for p in base_image_paths]
+            payload["base_image_paths"] = abs_paths
 
         _dbg(f"Request -> {self.server_url}")
         _dbg(f"Prompt length: {len(prompt)} characters")
@@ -139,33 +142,25 @@ class GeminiImageTool(BaseTool):
                         panel_id = f"panel_{panel_number}"
                         _dbg(f"Extracted panel number from prompt: {panel_id}")
                     else:
-                        # Try to extract from filename as fallback
-                        filename = os.path.basename(source_image_path)
-                        panel_id_match = re.search(r'panel[_\s]*(\d+)', filename, re.IGNORECASE)
-                        if panel_id_match:
-                            panel_id = f"panel_{panel_id_match.group(1)}"
-                            _dbg(f"Extracted panel number from filename: {panel_id}")
-                        else:
-                            # Use a cleaned version of the filename as panel_id for registry (fallback)
-                            clean_filename = re.sub(r'[^\w]', '_', filename.split('.')[0])
-                            panel_id = clean_filename[:50]  # Limit length
-                            _dbg(f"Using filename as panel ID: {panel_id}")
-                    
+                        _dbg("Could not extract panel number from prompt. This is a problem.")
+                        # We still need to return the path, but the registry won't be correctly updated
+                        # for this specific panel number. The calling agent will need to handle this.
+
                     if panel_id:
                         update_registry_entry(
                             panel_id=panel_id,
+                            filename=source_filename,
                             backend=True,
                             frontend=True,
                             verified=True
                         )
-                        _dbg(f"Registry updated: {panel_id} marked as verified")
+                        _dbg(f"Registry updated for {panel_id} with filename {source_filename}")
                     
                 except Exception as frontend_error:
                     _dbg(f"Failed to copy to frontend (non-critical): {frontend_error}")
                 
-                # Return the relative path that can be used in markdown
-                relative_path = f"comic_panels/{source_filename}"
-                return f"Image generated successfully. Local path: {relative_path}"
+                # Return the filename, which will be used by other tools
+                return f"Image generated successfully. Filename: {source_filename}"
                 
             except Exception as copy_error:
                 _dbg(f"Failed to copy image: {copy_error}")

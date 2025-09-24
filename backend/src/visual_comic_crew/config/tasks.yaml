@@ -77,13 +77,32 @@ image_generation_task:
     You MUST generate ALL panels described in the story. For each panel:
     1. Extract the visual description for that panel
     2. Identify which named characters appear in this panel
-    3. For panels WITH named characters:
-       - IF character reference exists: Use Character Consistency Tool with action "generate_scene"
-       - IF character reference FAILED: Use Gemini Image Generator with detailed character description
-    4. For panels WITHOUT named characters:
-       - Use the Gemini Image Generator tool for standard generation
+    3. Choose the CORRECT tool based on character count:
+       - SINGLE CHARACTER: Use Character Consistency Tool with action "generate_scene"
+       - MULTIPLE CHARACTERS (2+): Use Multi-Character Scene Tool
+       - NO NAMED CHARACTERS: Use Gemini Image Generator
+       - REFINING EXISTING IMAGE: Use Image Refinement Tool
+    4. For failed character references, include detailed character descriptions in prompts
     5. You MUST call the actual tool and record the REAL returned image path
     6. NEVER fabricate or make up image paths - only use paths returned by tools
+
+    TOOL SELECTION CRITERIA:
+    - CharacterConsistencyTool: Single character scenes with existing character references
+    - MultiCharacterSceneTool: Scenes requiring 2+ characters using multiple character references
+    - ImageRefinementTool: Modifying existing panels with specific refinement requirements
+    - GeminiImageTool: Scenes with no named characters OR fallback when character tools fail
+
+    TOOL CALL FORMATS:
+    - CharacterConsistencyTool: action="generate_scene", character_name="Name", scene_description="Description", panel_number=X
+    - MultiCharacterSceneTool: character_names=["Name1", "Name2"], scene_description="Description", panel_number=X
+    - ImageRefinementTool: base_image_path="path/to/image.png", refinement_prompt="How to modify", panel_number=X
+    - GeminiImageTool: prompt="Panel X: Description", base_image_paths=null
+
+    IMPORTANT: All tools use the same Gemini server endpoint (generate-image) but with different parameters:
+    - CharacterConsistencyTool: Uses single base_image_paths for character reference
+    - MultiCharacterSceneTool: Uses multiple base_image_paths for character composition
+    - ImageRefinementTool: Uses single base_image_paths with refinement prompt
+    - GeminiImageTool: Uses no base images, just prompt
 
     ERROR HANDLING REQUIREMENTS:
     - If character reference creation fails, continue with direct image generation
@@ -107,14 +126,14 @@ image_generation_task:
 
     CRITICAL TOOL ARGUMENT FORMAT:
     When calling Gemini Image Generator, use EXACTLY this format:
-    - prompt: "your description text here" (simple string, NOT a dictionary)
+    - prompt: "Panel X: your description text here" (simple string, NOT a dictionary, where X is the panel number)
     - base_image_paths: null (or list of paths if needed)
 
     INCORRECT FORMAT (causes validation errors):
-    - prompt: {"description": "text", "type": "str"} ❌ 
+    - prompt: {"description": "text", "type": "str"} ❌
 
     CORRECT FORMAT:
-    - prompt: "A whimsical comic panel showing..." ✅
+    - prompt: "Panel X: A whimsical comic panel showing..." ✅ (where X is the actual panel number)
 
     MANDATORY FINAL SUMMARY:
     You MUST provide a complete summary with:
@@ -140,12 +159,10 @@ image_generation_task:
     - Panel 5: [actual tool-returned path OR "FAILED: reason"]
     - Panel 6: [actual tool-returned path OR "FAILED: reason"]
 
-    Summary:
-    - Total panels attempted: [number]
-    - Successfully generated: [number]
-    - Failed: [number with reasons]
+    CRITICAL: The final output of this task MUST be ONLY a JSON object mapping each panel number (e.g., "1", "2") to its generated image filename (e.g., "comic_panels/image_name.png").
+    Example: {"1": "comic_panels/server_generated_gemini-image-tutorial_1758628204412.png", "2": "comic_panels/server_generated_gemini-image-tutorial_1758628220627.png", "3": "FAILED: Timeout"}
 
-    CRITICAL: Only include paths actually returned by tools. Never make up filenames.
+    Do NOT include any other text, explanations, or formatting. The output must be valid JSON that can be parsed directly.
   agent: visual_director
   context:
     - story_creation_task
@@ -155,20 +172,29 @@ panel_validation_task:
     Validate that ALL comic panels referenced in the image generation results have
     corresponding actual image files in the filesystem before allowing comic assembly.
 
+    IMPORTANT: You MUST extract the panel-to-filename mapping from the IMAGE GENERATION TASK output.
+    The image generation task outputs a JSON object mapping panel numbers to actual filenames.
+    Look for this JSON in the context and use it as your panel_map input.
+
+    If you cannot find the JSON mapping in the context, STOP and report that the image generation task did not produce the expected JSON output. Do NOT create guessed filenames like "panel_1.png".
+
     VALIDATION REQUIREMENTS:
-    1. Parse the image generation task results to extract all panel image paths
-    2. For EACH panel image path referenced:
-       - Check if the file exists in the backend output folder
-       - Check if the file exists in the frontend comic_panels folder
-       - Verify the file is not empty/corrupted
+    1. Extract the actual panel-to-filename mapping from the image generation task results
+    2. For EACH panel number and filename in the mapping:
+       - Check if the filename exists in the backend output folder
+       - Check if the filename exists in the frontend comic_panels folder
+       - Verify the filename is not empty/corrupted
     3. Count total panels expected vs panels with valid images
     4. Identify any missing or invalid panel images
 
     VALIDATION CHECKS:
     - Panel completeness: All panels (1-6) have image references
-    - File existence: All referenced images exist in filesystem
+    - File existence: All referenced images exist in filesystem, check on their filename
     - Path validation: All paths are real (not fabricated like "panel2.png")
     - Accessibility: Images are accessible for frontend display
+
+    CRITICAL: Do NOT use guessed filenames like "panel_1.jpg". Only validate the actual filenames
+    that were reported as generated by the image generation task.
 
     MANDATORY VALIDATION REPORT:
     You MUST provide a detailed validation report with:
@@ -194,17 +220,19 @@ panel_validation_task:
     CRITICAL: Never approve comics with missing panel images!
   expected_output: >
     A comprehensive validation report showing:
-    - Detailed panel-by-panel validation results
+    - Detailed panel-by-panel validation results using ACTUAL filenames from image generation
     - File system verification status
     - Overall PASS/FAIL determination
     - Specific missing panels if any failures
     - Clear recommendation for next steps
 
-    Only comics with 100% panel validation should be marked as PASS.
+    CRITICAL: Report must be based on actual generated filenames, not guessed ones like "panel_1.jpg".
+    Only comics with 100% panel validation (all actual generated files present) should be marked as PASS.
   agent: evaluator
   context:
     - story_creation_task
     - orchestrated_generation_task
+    - image_generation_task
 
 comic_assembly_task:
   description: |

@@ -1,0 +1,1 @@
+Error: Comic assembly cannot proceed. The panel validation check FAILED. All panel images are missing from the filesystem, and Panel 5 generation was explicitly reported as failed. Please review the generation stage, resolve the missing file errors, and re-run the validation before attempting assembly again. Manual intervention is required.
