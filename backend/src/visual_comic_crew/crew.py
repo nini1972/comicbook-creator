@@ -8,6 +8,17 @@ from .tools.image_refinement_tool import ImageRefinementTool
 from .tools.orchestrator_tools import WorkflowControlTool, RetryManagerTool, StatusTrackerTool
 from .tools.panel_validation_tool import PanelValidationTool
 import traceback
+import os
+from pathlib import Path
+
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    env_path = Path(__file__).parent.parent.parent.parent / '.env'
+    load_dotenv(dotenv_path=env_path)
+    print(f"DEBUG: Loaded environment variables from {env_path}")
+except ImportError:
+    print("DEBUG: python-dotenv not available, environment variables may not be loaded")
 
 @CrewBase
 class VisualComicCrew():

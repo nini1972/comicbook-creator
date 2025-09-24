@@ -60,6 +60,5 @@ Let's create wonders together with the power and simplicity of crewAI.
 
 ### to kill Process ID
 stop-process -Id <ProcessID> -Force
-
 ## stop frontend
 stop-process -Id (Get-NetTCPConnection -LocalPort 3000).OwningProcess -Force

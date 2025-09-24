@@ -27,17 +27,48 @@ class PanelValidationTool(BaseTool):
         frontend_panels_path = Path("C:/Users/ninic/projects/CrewAI/comicbook/frontend/public/comic_panels")
         return backend_output_path, frontend_panels_path
 
+    def _normalize_filename(self, input_string: str) -> str:
+        """
+        Extract the actual filename from various tool output formats.
+        
+        Handles:
+        - Full paths: "output/comic_panels/filename.png" -> "filename.png"
+        - Descriptive text: "Image generated successfully. Filename: filename.png" -> "filename.png"
+        - Direct filenames: "filename.png" -> "filename.png"
+        """
+        import re
+        import os
+        
+        # Remove any path components, keeping only the filename
+        filename = os.path.basename(input_string.strip())
+        
+        # If it's descriptive text with "Filename:" pattern, extract the filename
+        filename_match = re.search(r'Filename:\s*([^\s\n\r]+)', input_string, re.IGNORECASE)
+        if filename_match:
+            filename = filename_match.group(1).strip()
+            # Remove any remaining path components
+            filename = os.path.basename(filename)
+        
+        # Clean up any remaining path separators or unwanted characters
+        filename = filename.replace('\\', '').replace('/', '')
+        
+        return filename
+
     def _check_file_existence(self, filename: str) -> Dict[str, bool]:
         """Check if image file exists in backend and frontend locations."""
+        # First normalize the filename to handle different input formats
+        normalized_filename = self._normalize_filename(filename)
+        
         backend_output_path, frontend_panels_path = self._get_paths()
-        backend_file = backend_output_path / filename
-        frontend_file = frontend_panels_path / filename
+        backend_file = backend_output_path / normalized_filename
+        frontend_file = frontend_panels_path / normalized_filename
         
         return {
             'backend': backend_file.exists() and backend_file.is_file(),
             'frontend': frontend_file.exists() and frontend_file.is_file(),
             'backend_path': str(backend_file),
-            'frontend_path': str(frontend_file)
+            'frontend_path': str(frontend_file),
+            'normalized_filename': normalized_filename
         }
 
     def _run(self, panel_map: Dict[str, str], expected_panel_count: int = 6) -> str:
@@ -81,11 +112,12 @@ class PanelValidationTool(BaseTool):
                 continue
             
             file_check = self._check_file_existence(filename)
+            normalized_filename = file_check['normalized_filename']
             
-            # Update registry with current sync status and filename
+            # Update registry with current sync status and normalized filename
             update_registry_entry(
                 panel_id=panel_id,
-                filename=filename,
+                filename=normalized_filename,
                 backend=file_check['backend'],
                 frontend=file_check['frontend'],
                 verified=file_check['backend'] and file_check['frontend']
@@ -97,15 +129,15 @@ class PanelValidationTool(BaseTool):
                 frontend_files_found += 1
             
             if file_check['backend'] and file_check['frontend']:
-                validation_results.append(f"- Panel {panel_num}: ✅ VALID: {filename}")
+                validation_results.append(f"- Panel {panel_num}: ✅ VALID: {normalized_filename}")
             elif file_check['backend'] and not file_check['frontend']:
-                validation_results.append(f"- Panel {panel_num}: ⚠️ BACKEND ONLY: {filename} (missing from frontend)")
+                validation_results.append(f"- Panel {panel_num}: ⚠️ BACKEND ONLY: {normalized_filename} (missing from frontend)")
                 missing_panels.append(panel_num)
             elif not file_check['backend'] and file_check['frontend']:
-                validation_results.append(f"- Panel {panel_num}: ⚠️ FRONTEND ONLY: {filename} (missing from backend)")
+                validation_results.append(f"- Panel {panel_num}: ⚠️ FRONTEND ONLY: {normalized_filename} (missing from backend)")
                 missing_panels.append(panel_num)
             else:
-                validation_results.append(f"- Panel {panel_num}: ❌ MISSING: {filename} (not found in either location)")
+                validation_results.append(f"- Panel {panel_num}: ❌ MISSING: {normalized_filename} (not found in either location)")
                 missing_panels.append(panel_num)
         
         # Generate validation report

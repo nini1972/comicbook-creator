@@ -10,23 +10,25 @@ import time
 
 class MultiCharacterSceneToolSchema(BaseModel):
     """Input schema for Multi-Character Scene Tool."""
-    character_names: List[str] = Field(..., description="List of character names to include in the scene")
+    character_names: List[str] = Field(..., description="List of minimum 2 character names to include in the scene")
     scene_description: str = Field(..., description="Description of the scene/panel with multiple characters")
     panel_number: int = Field(1, description="Panel number for scene generation")
 
 class MultiCharacterSceneTool(BaseTool):
     """
-    Multi-Character Scene Tool using Gemini's image generation with multiple base images.
-    Combines multiple character reference images into a single scene.
+    Multi-Character Scene Tool using Gemini's image generation with multiple base images. At the Gemini Image Tutorial page, this is referred to as "compose_images" (option 4).
+    Combines multiple character reference images into a single scene. 
+    You can only use this tool when you have ALREADY created the character reference images using the Character Reference Tool.
+    Check if the character reference images exist in output/character_references. Otherwise if one or more are missing, use the Character Reference Tool to create the missing Characters.
     Uses the standard Gemini generate-image endpoint with multiple base_image_paths.
     """
 
     name: str = "Multi-Character Scene Tool"
     description: str = (
         "Creates comic panels with multiple characters by composing multiple character "
-        "reference images into a single scene. Uses Gemini's compose_images function "
+        "reference images into a single scene. Uses Gemini's compose_images function, option 4"
         "to maintain character consistency across multiple characters in the same panel. "
-        "Use this when a scene requires two or more named characters to appear together."
+        "Use this when a scene requires TWO or more named characters to appear together."
     )
     args_schema: Type[BaseModel] = MultiCharacterSceneToolSchema
     server_url: str = os.getenv("GEMINI_IMAGE_SERVER_URL", "http://127.0.0.1:8000/generate-image/")
@@ -61,10 +63,10 @@ class MultiCharacterSceneTool(BaseTool):
         panel_number: int = 1
     ) -> str:
         """
-        Generate a scene with multiple characters using Gemini's compose_images.
+        Generate a scene with multiple characters using Gemini's compose_images, option 4.
 
         Args:
-            character_names: List of character names to include
+            character_names: List of minimum 2 character names to include
             scene_description: Description of the scene
             panel_number: Panel number for naming
 

@@ -16,7 +16,7 @@ class ImageRefinementToolSchema(BaseModel):
 
 class ImageRefinementTool(BaseTool):
     """
-    Image Refinement Tool using Gemini's image generation with base image refinement.
+    Image Refinement Tool using Gemini's image generation with 'style_transfer, option 2'.
     Takes an existing comic panel and refines it based on specific requirements.
     Uses the standard Gemini generate-image endpoint with base_image_paths.
     """
@@ -41,7 +41,7 @@ class ImageRefinementTool(BaseTool):
         panel_number: int = 1
     ) -> str:
         """
-        Refine an existing image using Gemini's image generation with base image reference.
+        Refine an existing image using Gemini's image generation with style_transfer, option 2.
 
         Args:
             base_image_path: Path to the base image to refine
@@ -80,17 +80,34 @@ class ImageRefinementTool(BaseTool):
             if response.status_code != 200:
                 return f"❌ Failed to refine image: HTTP {response.status_code} - {response.text}"
 
+            
             result = response.json()
-
-            if "error" in result:
-                return f"❌ Gemini refinement error: {result['error']}"
-
-            if "image_path" not in result:
-                return "❌ No image path returned from Gemini refinement operation"
+            if result.get("status") != "success" or "image_path" not in result:
+                error_message = (
+                    result.get("message")
+                    or result.get("detail")
+                    or result.get("error")
+                    or "Unknown error from image refinement server."
+                )
+                return f"❌ Refinement failed: {error_message}"
+    
 
             source_path = Path(result["image_path"])
             if not source_path.exists():
                 return f"❌ Refined image not found at {source_path}"
+
+            if not os.path.isabs(source_path):
+                gemini_tutorial_dir = r"C:\Users\ninic\projects\Datacamp_projects\gemini-image-tutorial"
+                source_path = Path(gemini_tutorial_dir) / source_path
+            
+            max_retries = 3
+            for attempt in range(max_retries):
+                if source_path.exists():
+                    break
+                time.sleep(1)
+            else:
+                return f"❌ Refined image not found after retries: {source_path}"
+
 
             # Create filename with timestamp for uniqueness
             timestamp = int(time.time() * 1000)

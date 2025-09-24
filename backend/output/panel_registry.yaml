@@ -1,6 +1,6 @@
 panel_1:
   backend_synced: true
-  filename: server_generated_gemini-image-tutorial_1758722508432.png
+  filename: server_generated_gemini-image-tutorial_1758739676603.png
   frontend_synced: true
   verified: true
 panel_10:
@@ -50,29 +50,29 @@ panel_18:
   verified: false
 panel_2:
   backend_synced: true
-  filename: server_generated_gemini-image-tutorial_1758722283828.png
+  filename: consistent_panel_002_pip_1758739701096.png
   frontend_synced: true
   verified: true
 panel_3:
   backend_synced: true
-  filename: consistent_panel_003_nyra_1758722295640.png
+  filename: consistent_panel_003_pip_1758739712760.png
   frontend_synced: true
   verified: true
 panel_4:
   backend_synced: true
-  filename: server_generated_gemini-image-tutorial_1758722313269.png
+  filename: consistent_panel_004_pip_1758739726017.png
   frontend_synced: true
   verified: true
 panel_5:
   backend_synced: true
-  filename: consistent_panel_005_nyra_1758722325937.png
+  filename: consistent_panel_005_pip_1758739736967.png
   frontend_synced: true
   verified: true
 panel_6:
   backend_synced: true
-  filename: server_generated_gemini-image-tutorial_1758722343822.png
+  filename: server_generated_gemini-image-tutorial_1758736463037.png
   frontend_synced: true
-  verified: true
+  verified: false
 panel_7:
   backend_synced: false
   filename: TBD

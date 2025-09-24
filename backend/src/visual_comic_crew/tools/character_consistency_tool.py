@@ -35,8 +35,9 @@ class CharacterConsistencyTool(BaseTool):
     description: str = (
         "Creates character reference sheets and generates consistent character images "
         "across multiple comic panels. Based on Gemini Image Tutorial Option 6 approach. "
-        "Use this tool to ensure characters like Lyra and Nimbus maintain the same "
-        "appearance throughout the comic story. Supports creating new characters or "
+        "Use this tool to ensure characters like Lyra and Nimbus maintain the same in various scene descriptions"
+        "so don't only use it to create new characters, but also to use the created characters in scene descriptions, where the Character is mentioned"
+        "appearance throughout the comic story. Supports creating new characters "
         "loading existing character references."
     )
     args_schema: Type[BaseModel] = CharacterConsistencyToolSchema

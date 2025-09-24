@@ -10,6 +10,15 @@ import os
 import sys
 from pathlib import Path
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    env_path = Path(__file__).parent / '.env'
+    load_dotenv(dotenv_path=env_path)
+    print(f"DEBUG: Loaded environment variables from {env_path}")
+except ImportError:
+    print("DEBUG: python-dotenv not available, environment variables may not be loaded")
+
 from src.visual_comic_crew.crew import VisualComicCrew
 from crewai.tasks.task_output import TaskOutput
 
