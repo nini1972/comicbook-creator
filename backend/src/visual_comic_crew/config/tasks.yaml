@@ -63,15 +63,21 @@ image_generation_task:
   description: |
     Generate comic panel images based on the story script.
 
-    PROCESS:
-    1. Create character references for any named characters using Character Consistency Tool
-    2. Generate ALL panels using appropriate tools:
-       - Single character: Character Consistency Tool (action="generate_scene")
-       - Multiple characters: Multi-Character Scene Tool
-       - No characters: Gemini Image Generator
-    3. Use actual tool-returned paths only (never fabricate filenames)
+    CHARACTER CREATION PHASE:
+    1. FIRST: Identify all named characters mentioned in the story
+    2. For EACH character, call Character Consistency Tool with action="create_character"
+       to create reference images before generating any scenes
+    3. Verify character references exist before proceeding to scene generation
+
+    SCENE GENERATION PHASE:
+    4. Generate ALL panels using appropriate tools:
+       - Single character scenes: Character Consistency Tool (action="generate_scene")
+       - Multiple character scenes: Multi-Character Scene Tool
+       - Scenes with no characters: Gemini Image Generator
+    5. Use actual tool-returned paths only (never fabricate filenames)
 
     REQUIREMENTS:
+    - Create character references BEFORE generating any scenes
     - Generate ALL panels described in the story
     - Use correct tool based on character count in each panel
     - Record real image paths returned by tools
@@ -80,8 +86,9 @@ image_generation_task:
     OUTPUT: JSON object mapping panel numbers to actual filenames
     Example: {"1": "comic_panels/image1.png", "2": "comic_panels/image2.png"}
   expected_output: >
-    JSON object mapping each panel number to its generated image filename.
-    Example: {"1": "comic_panels/server_generated_gemini-image-tutorial_1758628204412.png", "2": "comic_panels/server_generated_gemini-image-tutorial_1758628220627.png"}
+    A valid JSON object with panel mappings. Format: {"panel_number": "actual_filename.png"}
+    Example: {"1": "consistent_panel_001_character_123456789.png", "2": "multi_char_panel_002_chars_123456789.png"}
+    Do NOT include any text before or after the JSON. The output must be parseable as JSON.
   agent: visual_director
   context:
     - story_creation_task

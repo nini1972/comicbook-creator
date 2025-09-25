@@ -10,6 +10,15 @@ import shutil
 import time
 import hashlib
 
+from .image_utils import (
+    resolve_image_path,
+    retry_file_check,
+    verify_image_readable,
+    copy_image_to_output,
+    update_registry_for_image,
+    prepare_temp_images_for_gemini
+)
+
 class CharacterConsistencyToolSchema(BaseModel):
     """Input schema for Character Consistency Tool."""
     action: str = Field(..., description="Action to perform: 'create_character', 'generate_scene', or 'list_characters'")
@@ -33,12 +42,11 @@ class CharacterConsistencyTool(BaseTool):
     
     name: str = "Character Consistency Tool"
     description: str = (
-        "Creates character reference sheets and generates consistent character images "
-        "across multiple comic panels. Based on Gemini Image Tutorial Option 6 approach. "
-        "Use this tool to ensure characters like Lyra and Nimbus maintain the same in various scene descriptions"
-        "so don't only use it to create new characters, but also to use the created characters in scene descriptions, where the Character is mentioned"
-        "appearance throughout the comic story. Supports creating new characters "
-        "loading existing character references."
+        "Manages character creation and consistent character appearance across comic panels. "
+        "Use 'create_character' action to create new character reference sheets. "
+        "Use 'generate_scene' action to generate comic panels with existing characters, "
+        "maintaining consistent appearance. Use 'list_characters' to see available characters. "
+        "Essential for maintaining character consistency throughout comic stories."
     )
     args_schema: Type[BaseModel] = CharacterConsistencyToolSchema
     server_url: str = os.getenv("GEMINI_IMAGE_SERVER_URL", "http://127.0.0.1:8000/generate-image/")
@@ -147,6 +155,8 @@ class CharacterConsistencyTool(BaseTool):
         cache_file = self._get_character_cache_path()
         character_key = character_name.lower()
         
+        print(f"🔍 DEBUG: Looking for character reference for '{character_name}' (key: '{character_key}')")
+        
         # First try the cache file
         if cache_file.exists():
             try:
@@ -156,19 +166,23 @@ class CharacterConsistencyTool(BaseTool):
                             key, value = line.strip().split('=', 1)
                             if key == character_key:
                                 if Path(value).exists():
+                                    print(f"✅ DEBUG: Found cached reference: {value}")
                                     return value
                                 else:
-                                    print(f"⚠️  Cached reference {value} not found, removing from cache")
-            except Exception:
-                pass
+                                    print(f"⚠️ DEBUG: Cached reference {value} not found, removing from cache")
+            except Exception as e:
+                print(f"⚠️ DEBUG: Error reading cache: {e}")
         
         # Fallback: look for existing reference file
         reference_path = Path(f"output/character_references/{character_key}_reference.png")
+        print(f"🔍 DEBUG: Checking filesystem for: {reference_path}")
         if reference_path.exists():
             # Save to cache for next time
             self._save_character_reference(character_name, str(reference_path))
+            print(f"✅ DEBUG: Found reference on filesystem: {reference_path}")
             return str(reference_path)
         
+        print(f"❌ DEBUG: No reference found for '{character_name}'")
         return None
 
     def _generate_image_via_server(self, prompt: str, base_image_paths: Optional[list] = None, single_call: bool = False) -> str:
@@ -229,6 +243,7 @@ class CharacterConsistencyTool(BaseTool):
         Returns:
             str: Path to the saved character reference image or error message
         """
+        print(f"👤 DEBUG: create_character_reference called for '{character_name}'")
         try:
             print(f"👤 Creating character reference for {character_name}...")
             
@@ -246,16 +261,20 @@ class CharacterConsistencyTool(BaseTool):
             
             # Handle relative paths from Gemini Image Tutorial (same as GeminiImageTool)
             source_image_path = result
-            if not os.path.isabs(source_image_path):
-                # Gemini Image Tutorial is located at C:\Users\ninic\projects\Datacamp_projects\gemini-image-tutorial
-                gemini_tutorial_dir = r"C:\Users\ninic\projects\Datacamp_projects\gemini-image-tutorial"
-                source_image_path = os.path.join(gemini_tutorial_dir, source_image_path)
+            source_path = resolve_image_path(source_image_path)
+
             
             # Check if source file exists
-            source_path = Path(source_image_path)
             if not source_path.exists():
                 return f"❌ Generated character reference not found at {source_image_path}"
             
+            # for readibility Check if image is readable
+            if not retry_file_check(source_path):
+                return f"❌ Character reference not found after retries: {source_path}"
+            
+            if not verify_image_readable(source_path):
+                return f"❌ Character reference unreadable: {source_path}"
+
             # Create character references directory
             char_ref_dir = Path("output/character_references")
             char_ref_dir.mkdir(parents=True, exist_ok=True)
@@ -264,10 +283,21 @@ class CharacterConsistencyTool(BaseTool):
             reference_path = char_ref_dir / f"{character_name.lower()}_reference.png"
             
             # Copy the generated image to character references
+            # Use direct copy instead of copy_image_to_output since character refs go to different folder
             shutil.copy2(source_path, reference_path)
             
+            # Also copy to frontend character references for consistency
+            frontend_char_ref_dir = Path("../frontend/public/character_references")
+            frontend_char_ref_dir.mkdir(parents=True, exist_ok=True)
+            frontend_ref_path = frontend_char_ref_dir / reference_path.name
+            shutil.copy2(source_path, frontend_ref_path)
+            
+            backend_path = reference_path
+            frontend_path = frontend_ref_path
+
             # Store the path for future use
-            self._save_character_reference(character_name, str(reference_path))
+            self._save_character_reference(character_name, str(backend_path))
+
             
             print(f"✅ Character reference for {character_name} saved to {reference_path}")
             return str(reference_path)
@@ -295,19 +325,23 @@ class CharacterConsistencyTool(BaseTool):
         Returns:
             str: Path to the generated panel image or error message
         """
+        print(f"🎬 DEBUG: generate_character_scene called for '{character_name}' in panel {panel_number}")
         try:
             character_key = character_name.lower()
             
             # OPTIMIZATION: Check panel cache first
             cached_panel = self._check_panel_cache(character_name, scene_description, panel_number)
             if cached_panel:
+                print(f"🎯 DEBUG: Using cached panel: {cached_panel}")
                 return cached_panel
             
             # Check if we have a character reference (Option 6 requirement)
             reference_path = self._get_character_reference(character_name)
             if not reference_path:
-                return (f"❌ No character reference found for {character_name}. "
-                       f"Please create a character reference first using 'create_character' action.")
+                error_msg = (f"❌ No character reference found for {character_name}. "
+                           f"Please create a character reference first using 'create_character' action.")
+                print(f"❌ DEBUG: {error_msg}")
+                return error_msg
             
             print(f"📚 Using character reference for {character_name}: {reference_path}")
             
@@ -319,18 +353,12 @@ class CharacterConsistencyTool(BaseTool):
             if not Path(reference_path).exists():
                 return f"❌ Character reference file not found at {reference_path}"
             
-            # Copy character reference to Gemini server's working directory for access
-            gemini_tutorial_dir = r"C:\Users\ninic\projects\Datacamp_projects\gemini-image-tutorial"
-            gemini_ref_path = os.path.join(gemini_tutorial_dir, "temp_character_refs")
-            os.makedirs(gemini_ref_path, exist_ok=True)
-            
-            # Create temporary reference file in Gemini's directory
-            temp_ref_name = f"{character_key}_temp_ref_{panel_number}.png"  # Include panel number for uniqueness
-            temp_ref_full_path = os.path.join(gemini_ref_path, temp_ref_name)
-            shutil.copy2(reference_path, temp_ref_full_path)
-            
-            # Use the absolute path that the Gemini server can access
-            server_absolute_path = temp_ref_full_path
+            gemini_paths = prepare_temp_images_for_gemini([str(Path(reference_path).resolve())], "temp_character_refs")
+            if not gemini_paths:
+                return f"❌ Failed to prepare character reference for Gemini access: {reference_path}"
+
+            server_absolute_path = gemini_paths[0]
+
             
             # Option 6 approach: place character from reference into new scene
             scene_prompt = f"Panel {panel_number}: {scene_description}"
@@ -342,92 +370,98 @@ class CharacterConsistencyTool(BaseTool):
             result = self._generate_image_via_server(scene_prompt, [server_absolute_path], single_call=True)
             
             if result.startswith("❌"):
-                # Clean up temporary file on error
                 try:
-                    os.remove(temp_ref_full_path)
-                except:
-                    pass
+                    temp_path = Path(server_absolute_path)
+                    if temp_path.exists():
+                        temp_path.unlink()
+                        print(f"🧹 Temp file deleted: {temp_path}")
+                except Exception as cleanup_error:
+                    print(f"⚠️ Failed to delete temp file: {cleanup_error}")
+
                 return result
             
             # Handle relative paths from Gemini Image Tutorial (same as character reference creation)
             source_image_path = result
-            if not os.path.isabs(source_image_path):
-                # Gemini Image Tutorial is located at C:\Users\ninic\projects\Datacamp_projects\gemini-image-tutorial
-                gemini_tutorial_dir = r"C:\Users\ninic\projects\Datacamp_projects\gemini-image-tutorial"
-                source_image_path = os.path.join(gemini_tutorial_dir, source_image_path)
+            source_path = resolve_image_path(source_image_path)
             
             # Move to consistent panels in comic_panels directory
-            source_path = Path(source_image_path)
-            if not source_path.exists():
-                # Clean up temporary file on error
+            if not retry_file_check(source_path):
                 try:
-                    os.remove(temp_ref_full_path)
-                except:
-                    pass
-                return f"❌ Generated panel not found at {source_image_path}"
+                    temp_path = Path(server_absolute_path)
+                    if temp_path.exists():
+                        temp_path.unlink()
+                        print(f"🧹 Temp file deleted: {temp_path}")
+                except Exception as cleanup_error:
+                    print(f"⚠️ Failed to delete temp file: {cleanup_error}")
+
+                return f"❌ Generated panel not found after retries: {source_path}"
+
+            if not verify_image_readable(source_path):
+                try:
+                    temp_path = Path(server_absolute_path)
+                    if temp_path.exists():
+                        temp_path.unlink()
+                        print(f"🧹 Temp file deleted: {temp_path}")
+                except Exception as cleanup_error:
+                    print(f"⚠️ Failed to delete temp file: {cleanup_error}")
+
+                return f"❌ Generated panel unreadable: {source_path}"
+
+            
             
             # Create filename for consistent panel
             panel_filename = f"consistent_panel_{panel_number:03d}_{character_key}_{int(time.time() * 1000)}.png"
             panel_path = Path("output/comic_panels") / panel_filename
             
+            # Define panel_id for registry updates
+            panel_id = f"panel_{panel_number}"
+
             # Ensure comic_panels directory exists
             panel_path.parent.mkdir(parents=True, exist_ok=True)
             
             # Copy the generated image
-            shutil.copy2(source_path, panel_path)
-            
-            # Registry update: Log successful generation and sync
-            from .registry import update_registry_entry
-            
-            panel_id = f"panel_{panel_number}"
-            
-            # Also copy to frontend for web display
-            frontend_dir = Path("../frontend/public/comic_panels")
-            frontend_dir = frontend_dir.resolve()
-            frontend_dir.mkdir(parents=True, exist_ok=True)
-            frontend_path = frontend_dir / panel_filename
-            
             try:
-                shutil.copy2(panel_path, frontend_path)
+                backend_path, frontend_path = copy_image_to_output(source_path, panel_filename)
+
                 print(f"✅ Character panel also copied to frontend: {frontend_path}")
                 
-                update_registry_entry(
-                    panel_id=panel_id,
-                    filename=panel_filename,
-                    backend=True,
-                    frontend=True,
-                    verified=True
-                )
+                update_registry_for_image(panel_id, panel_filename, True, True)
+
                 print(f"✅ Registry updated: {panel_id} marked as verified")
                 
             except Exception as frontend_error:
                 print(f"⚠️ Failed to copy to frontend (non-critical): {frontend_error}")
                 # Still update registry for backend success
-                update_registry_entry(
-                    panel_id=panel_id,
-                    filename=panel_filename,                    
-                    backend=True,
-                    frontend=False,
-                    verified=False
-                )
+                update_registry_for_image(panel_id, panel_filename, True, False)
+
                 print(f"✅ Registry updated: {panel_id} marked as backend-only")
             
             # OPTIMIZATION: Save to panel cache for future use
             self._save_panel_cache(character_name, scene_description, panel_number, str(panel_path))
             
-            # Clean up temporary reference file
-            try:
-                os.remove(temp_ref_full_path)
-            except:
-                pass  # Ignore cleanup errors
-            
             print(f"✅ Panel {panel_number} with {character_name} saved to {panel_path}")
             return str(panel_path)
-            
+        
         except Exception as e:
             error_msg = f"Error generating scene with {character_name}: {str(e)}"
             print(f"❌ {error_msg}")
             return f"❌ {error_msg}"
+        
+        finally:
+            # Always Clean up temporary reference file
+            try:
+                if 'server_absolute_path' in locals():
+                    temp_path = Path(server_absolute_path)
+                    if temp_path.exists():
+                        temp_path.unlink()
+                        print(f"🧹 Cleaned up temporary reference file: {temp_path}")
+            except Exception as cleanup_error:
+                print(f"⚠️ Failed to clean up temporary reference file: {cleanup_error}")
+
+            
+        
+            
+
 
     def list_character_references(self) -> str:
         """List all available character references"""
@@ -476,6 +510,7 @@ class CharacterConsistencyTool(BaseTool):
         """
         # Normalize action string
         action = action.lower().strip()
+        print(f"🔧 DEBUG: CharacterConsistencyTool._run called with action='{action}', character_name='{character_name}'")
         
         if action in ["create_character", "create", "character"]:
             if not character_name or not character_description:

@@ -1,3 +1,4 @@
 zara=output\character_references\zara_reference.png
 leo=output\character_references\leo_reference.png
 pip=output\character_references\pip_reference.png
+lily=output\character_references\lily_reference.png

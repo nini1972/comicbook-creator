@@ -1,0 +1,30 @@
+panel_1:
+  backend_synced: false
+  filename: panel_1.jpg
+  frontend_synced: false
+  verified: false
+panel_2:
+  backend_synced: false
+  filename: panel_2.jpg
+  frontend_synced: false
+  verified: false
+panel_3:
+  backend_synced: false
+  filename: panel_3.jpg
+  frontend_synced: false
+  verified: false
+panel_4:
+  backend_synced: false
+  filename: panel_4.jpg
+  frontend_synced: false
+  verified: false
+panel_5:
+  backend_synced: false
+  filename: panel_5.jpg
+  frontend_synced: false
+  verified: false
+panel_6:
+  backend_synced: false
+  filename: panel_6.jpg
+  frontend_synced: false
+  verified: false

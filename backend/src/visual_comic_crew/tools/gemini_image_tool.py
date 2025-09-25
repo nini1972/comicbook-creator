@@ -7,6 +7,15 @@ import time
 import shutil
 import re
 from pathlib import Path
+from .image_utils import (
+    resolve_image_path,
+    retry_file_check,
+    verify_image_readable,
+    copy_image_to_output,
+    extract_panel_id,
+    update_registry_for_image
+)
+
 
 # Simple helper for debug prints (could be replaced with logging module later)
 def _dbg(msg: str):
@@ -20,8 +29,9 @@ class GeminiImageToolSchema(BaseModel):
 class GeminiImageTool(BaseTool):
     name: str = "Gemini Image Generator"
     description: str = (
-        "Generates a comic panel image using the local image server (Gemini Flash). "
-        "Provide a detailed prompt including panel number, characters, style, perspective, and mood."
+        "Generates comic panel images from text prompts. Use for panels without specific characters, "
+        "background scenes, or when character references don't exist yet. "
+        "Does not maintain character consistency - use Character tools for character-specific panels."
     )
     args_schema: Type[BaseModel] = GeminiImageToolSchema
     # Allow override via environment variable GEMINI_IMAGE_SERVER_URL
@@ -29,6 +39,8 @@ class GeminiImageTool(BaseTool):
 
     def _run(self, prompt: str, base_image_paths: Optional[List[str]] = None) -> str:
         """Generate an image and return the saved path or an error string."""
+        print(f"🎨 DEBUG: GeminiImageTool called with prompt='{prompt[:50]}...', base_images={len(base_image_paths) if base_image_paths else 0}")
+        
         # Explicit validation to catch common errors
         if not isinstance(prompt, str):
             return f"Error: Prompt must be a string, got {type(prompt).__name__}: {prompt}"
@@ -68,12 +80,9 @@ class GeminiImageTool(BaseTool):
             # Handle relative paths from Gemini Image Tutorial
             # The server returns paths like "output\filename.png" 
             # We need to make this an absolute path to the Gemini Image Tutorial directory
-            if not os.path.isabs(source_image_path):
-                # Gemini Image Tutorial is located at C:\Users\ninic\projects\Datacamp_projects\gemini-image-tutorial
-                gemini_tutorial_dir = r"C:\Users\ninic\projects\Datacamp_projects\gemini-image-tutorial"
-                source_image_path = os.path.join(gemini_tutorial_dir, source_image_path)
-            
-            _dbg(f"Resolved source path: {source_image_path}")
+            source_path = resolve_image_path(source_image_path)
+         
+            _dbg(f"Resolved source path: {source_path}")
             
             # Extract filename from the source path
             source_filename = os.path.basename(source_image_path)
@@ -93,74 +102,32 @@ class GeminiImageTool(BaseTool):
                 time.sleep(0.5)
                 
                 # Check if source file exists with retries
-                max_retries = 3
-                for attempt in range(max_retries):
-                    if os.path.exists(source_image_path):
-                        break
-                    _dbg(f"Source file not found on attempt {attempt + 1}, waiting...")
-                    time.sleep(1)
-                else:
-                    _dbg(f"Source file not found after {max_retries} attempts: {source_image_path}")
-                    return f"Image generated but source file not found: {source_image_path}"
-                
+                if not retry_file_check(source_path):
+                    return f"Image generated but source file not found: {source_path}"
+                               
                 # Verify file is readable
-                try:
-                    with open(source_image_path, 'rb') as f:
-                        # Read first few bytes to ensure file is complete
-                        f.read(10)
-                except Exception as read_error:
-                    _dbg(f"Source file not readable: {read_error}")
-                    return f"Image generated but source file not readable: {source_image_path}"
-                
-                # Copy the file from Gemini Image Tutorial to our comic project
-                shutil.copy2(source_image_path, destination_path)
-                _dbg(f"Image copied to: {destination_path}")
-                
-                # Verify the copy was successful
-                if not os.path.exists(destination_path):
-                    _dbg(f"Copy verification failed - destination file not found")
-                    return f"Image copy verification failed: {destination_path}"
-                
-                # Also copy to frontend public directory for web display
-                frontend_dir = os.path.join(backend_dir, "..", "frontend", "public", "comic_panels")
-                frontend_dir = os.path.normpath(frontend_dir)
-                os.makedirs(frontend_dir, exist_ok=True)
-                frontend_path = os.path.join(frontend_dir, source_filename)
-                
-                try:
-                    shutil.copy2(destination_path, frontend_path)
-                    _dbg(f"Image also copied to frontend: {frontend_path}")
-                    
-                    # Registry update: Log successful generation and sync
-                    from .registry import update_registry_entry
-                    
-                    # Extract panel number from the prompt (e.g., "Panel 1:", "Panel 2:", etc.)
-                    panel_id = None
-                    panel_match = re.search(r'panel\s*(\d+)', prompt.lower())
-                    if panel_match:
-                        panel_number = panel_match.group(1)
-                        panel_id = f"panel_{panel_number}"
-                        _dbg(f"Extracted panel number from prompt: {panel_id}")
-                    else:
-                        _dbg("Could not extract panel number from prompt. This is a problem.")
-                        # We still need to return the path, but the registry won't be correctly updated
-                        # for this specific panel number. The calling agent will need to handle this.
+                if not verify_image_readable(source_path):
+                    return f"Image generated but source file not readable: {source_path}"
 
-                    if panel_id:
-                        update_registry_entry(
-                            panel_id=panel_id,
-                            filename=source_filename,
-                            backend=True,
-                            frontend=True,
-                            verified=True
-                        )
-                        _dbg(f"Registry updated for {panel_id} with filename {source_filename}")
-                    
-                except Exception as frontend_error:
-                    _dbg(f"Failed to copy to frontend (non-critical): {frontend_error}")
-                
-                # Return the filename, which will be used by other tools
-                return f"Image generated successfully. Filename: {source_filename}"
+                # Copy the file from Gemini Image Tutorial to our comic project
+                backend_path, frontend_path = copy_image_to_output(source_path, source_filename)
+
+                _dbg(f"Copied to backend: {backend_path}")
+                _dbg(f"Copied to frontend: {frontend_path}") 
+
+                # Extract panel number from the prompt (e.g., "Panel 1:", "Panel 2:", etc.)
+                panel_id = None
+                panel_id = extract_panel_id(prompt)
+                if panel_id:
+                    update_registry_for_image(panel_id, source_filename, True, True)
+
+                    _dbg(f"Registry updated for {panel_id} with filename {source_filename}")
+                   # Return the filename, which will be used by other tools
+                    return f"Image generated successfully. Filename: {source_filename}"                
+                else:
+                    _dbg("Warning: Could not extract panel ID from prompt, registry not updated.")           
+                     # Return the filename, which will be used by other tools
+                    return f"Image registered unsuccessfully, panel_id is missing. Filename: {source_filename}"
                 
             except Exception as copy_error:
                 _dbg(f"Failed to copy image: {copy_error}")

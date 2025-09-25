@@ -1,12 +1,18 @@
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Type
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
-from typing import Type
 import requests
-import shutil
 import time
+from .image_utils import (
+    resolve_image_path,
+    retry_file_check,
+    verify_image_readable,
+    copy_image_to_output,
+    update_registry_for_image,
+    prepare_temp_images_for_gemini
+)
 
 class ImageRefinementToolSchema(BaseModel):
     """Input schema for Image Refinement Tool."""
@@ -15,12 +21,6 @@ class ImageRefinementToolSchema(BaseModel):
     panel_number: int = Field(1, description="Panel number for scene generation")
 
 class ImageRefinementTool(BaseTool):
-    """
-    Image Refinement Tool using Gemini's image generation with 'style_transfer, option 2'.
-    Takes an existing comic panel and refines it based on specific requirements.
-    Uses the standard Gemini generate-image endpoint with base_image_paths.
-    """
-
     name: str = "Image Refinement Tool"
     description: str = (
         "Refines and modifies existing comic panel images using Gemini's image editing "
@@ -40,47 +40,33 @@ class ImageRefinementTool(BaseTool):
         refinement_prompt: str,
         panel_number: int = 1
     ) -> str:
-        """
-        Refine an existing image using Gemini's image generation with style_transfer, option 2.
-
-        Args:
-            base_image_path: Path to the base image to refine
-            refinement_prompt: Description of the refinements to apply
-            panel_number: Panel number for naming
-
-        Returns:
-            str: Result message with refined image path or error
-        """
+        print(f"🔧 DEBUG: ImageRefinementTool called with base_image='{base_image_path}', panel={panel_number}")
         try:
-            # Validate base image exists
             base_path = Path(base_image_path)
             if not base_path.exists():
                 return f"❌ Base image not found: {base_image_path}"
 
-            # Construct refinement prompt that includes the base image context
-            full_prompt = f"Panel {panel_number}: Refine and modify the existing comic panel image with these changes: {refinement_prompt}. Maintain the comic art style and character consistency."
+            full_prompt = (
+                f"Panel {panel_number}: Refine and modify the existing comic panel image with these changes: "
+                f"{refinement_prompt}. Maintain the comic art style and character consistency."
+            )
+            # Prepare base image for Gemini access
+            gemini_paths = prepare_temp_images_for_gemini([str(base_path.resolve())], "temp_refinement_images")
 
-            # Prepare request for Gemini generate-image endpoint with base image
-            # Convert to absolute path so Gemini server can find the file
-            abs_base_path = Path(base_image_path).resolve()
+            if not gemini_paths:
+                    return f"❌ Failed to prepare base image for Gemini access: {base_image_path}"
+
             payload = {
                 "prompt": full_prompt,
-                "base_image_paths": [str(abs_base_path)]
-            }
+                "base_image_paths": gemini_paths
+                }
 
             print(f"🔄 Refining image for panel {panel_number}: {base_image_path}")
-
-            # Make request to Gemini server using the standard generate-image endpoint
-            response = requests.post(
-                self.server_url,
-                json=payload,
-                timeout=120
-            )
+            response = requests.post(self.server_url, json=payload, timeout=120)
 
             if response.status_code != 200:
                 return f"❌ Failed to refine image: HTTP {response.status_code} - {response.text}"
 
-            
             result = response.json()
             if result.get("status") != "success" or "image_path" not in result:
                 error_message = (
@@ -90,76 +76,27 @@ class ImageRefinementTool(BaseTool):
                     or "Unknown error from image refinement server."
                 )
                 return f"❌ Refinement failed: {error_message}"
-    
 
-            source_path = Path(result["image_path"])
-            if not source_path.exists():
-                return f"❌ Refined image not found at {source_path}"
-
-            if not os.path.isabs(source_path):
-                gemini_tutorial_dir = r"C:\Users\ninic\projects\Datacamp_projects\gemini-image-tutorial"
-                source_path = Path(gemini_tutorial_dir) / source_path
-            
-            max_retries = 3
-            for attempt in range(max_retries):
-                if source_path.exists():
-                    break
-                time.sleep(1)
-            else:
+            source_path = resolve_image_path(result["image_path"])
+            if not retry_file_check(source_path):
                 return f"❌ Refined image not found after retries: {source_path}"
 
+            if not verify_image_readable(source_path):
+                return f"❌ Refined image unreadable: {source_path}"
 
-            # Create filename with timestamp for uniqueness
             timestamp = int(time.time() * 1000)
-            base_name = base_path.stem  # Get filename without extension
+            base_name = base_path.stem
             panel_filename = f"refined_panel_{panel_number:03d}_{base_name}_{timestamp}.png"
-            panel_path = Path("output/comic_panels") / panel_filename
 
-            # Ensure comic_panels directory exists
-            panel_path.parent.mkdir(parents=True, exist_ok=True)
-
-            # Copy the refined image
-            shutil.copy2(source_path, panel_path)
-
-            # Also copy to frontend for web display
-            frontend_dir = Path("../frontend/public/comic_panels")
-            frontend_dir = frontend_dir.resolve()
-            frontend_dir.mkdir(parents=True, exist_ok=True)
-            frontend_path = frontend_dir / panel_filename
-
+            panel_id = f"panel_{panel_number}"
             try:
-                shutil.copy2(panel_path, frontend_path)
-                print(f"✅ Refined panel also copied to frontend: {frontend_path}")
-
-                # Registry update
-                from .registry import update_registry_entry
-                panel_id = f"panel_{panel_number}"
-
-                update_registry_entry(
-                    panel_id=panel_id,
-                    filename=panel_filename,
-                    backend=True,
-                    frontend=True,
-                    verified=True
-                )
-                print(f"✅ Registry updated: {panel_id} marked as verified")
-
-                return f"✅ Image refined: {panel_filename} (based on {base_path.name})"
-
+                backend_path, frontend_path = copy_image_to_output(source_path, panel_filename)
+                update_registry_for_image(panel_id, panel_filename, True, True)
+                return f"✅ Image refined: {panel_filename} (copied to backend and frontend)"
             except Exception as frontend_error:
-                print(f"⚠️ Failed to copy to frontend (non-critical): {frontend_error}")
-                # Still update registry for backend success
-                from .registry import update_registry_entry
-                update_registry_entry(
-                    panel_id=f"panel_{panel_number}",
-                    filename=panel_filename,
-                    backend=True,
-                    frontend=False,
-                    verified=False
-                )
-                print(f"✅ Registry updated: panel_{panel_number} marked as backend-only")
-
-                return f"✅ Image refined (backend only): {panel_filename} (based on {base_path.name})"
+                print(f"⚠️ Frontend copy failed: {frontend_error}")
+                update_registry_for_image(panel_id, panel_filename, True, False)
+                return f"✅ Image refined: {panel_filename} (frontend copy skipped)"
 
         except Exception as e:
             error_msg = f"❌ Error in image refinement: {str(e)}"

@@ -77,6 +77,12 @@ class PanelValidationTool(BaseTool):
         _dbg(f"Starting panel validation with panel_map: {panel_map}")
         print(f"PANEL_VALIDATION_TOOL_RECEIVED_MAP: {panel_map}")  # DEBUG
         
+        # If panel_map is empty or None, try to extract from context
+        if not panel_map:
+            _dbg("Panel map is empty, attempting to extract from context...")
+            # This should be handled by the agent framework, but let's add debug
+            print("PANEL_VALIDATION_TOOL_CONTEXT_EXTRACTION_NEEDED")
+        
         # Validate input
         if not panel_map or not isinstance(panel_map, dict):
             return "❌ ERROR: Invalid panel_map provided. Must be a dictionary mapping panel numbers to filenames."

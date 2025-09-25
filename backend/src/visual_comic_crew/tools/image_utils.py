@@ -3,11 +3,46 @@ import time
 import shutil
 import re
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple,List
 from .registry import update_registry_entry
 
 # Base directory for Gemini image server
 GEMINI_BASE_DIR = r"C:\Users\ninic\projects\Datacamp_projects\gemini-image-tutorial"
+
+def prepare_temp_images_for_gemini(base_image_paths: List[str], temp_folder_name: str) -> List[str]:
+    """
+    Copies base images to a Gemini-accessible temp folder and returns their absolute paths.
+
+    Args:
+        base_image_paths (List[str]): List of image paths from ComicBook side
+        temp_folder_name (str): Name of the temp folder inside Gemini-Image-Tutorial
+
+    Returns:
+        List[str]: List of absolute paths inside Gemini temp folder
+    """
+    gemini_root = Path(os.getenv("GEMINI_IMAGE_ROOT", "C:/Users/ninic/projects/Datacamp_projects/gemini-image-tutorial"))
+    temp_dir = gemini_root / temp_folder_name
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    copied_paths = []
+    for path_str in base_image_paths:
+        src_path = Path(path_str).resolve()
+        if not src_path.exists():
+            print(f"⚠️ Source image not found: {src_path}")
+            continue
+
+        # Create unique filename to avoid collisions
+        filename = src_path.name
+        dest_path = temp_dir / filename
+
+        try:
+            shutil.copy2(src_path, dest_path)
+            copied_paths.append(str(dest_path.resolve()))
+            print(f"📁 Copied to Gemini temp folder: {dest_path}")
+        except Exception as e:
+            print(f"⚠️ Failed to copy {src_path} to Gemini temp folder: {e}")
+
+    return copied_paths
 
 def resolve_image_path(relative_path: str) -> Path:
     """Convert relative image path from Gemini server to absolute path."""
@@ -66,3 +101,4 @@ def update_registry_for_image(panel_id: str, filename: str, backend: bool, front
         frontend=frontend,
         verified=verified
     )
+

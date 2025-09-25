@@ -65,16 +65,8 @@ async def run_crew_stream(topic: str, stream_callback):
     try:
         inputs = {'topic': topic}
         stream_callback(f"data: {json.dumps({'status': 'Initializing crew objects', 'details': None})}\n\n")
-        crew = VisualComicCrew().crew()
-        stream_callback(f"data: {json.dumps({'status': 'Crew initialized', 'details': f'{len(crew.agents)} agents / {len(crew.tasks)} tasks'})}\n\n")
-
-        # Define a callback function to handle streaming output
-        def on_task_complete(output: TaskOutput):
-            stream_callback(f"data: {json.dumps({'status': 'Task Complete', 'details': output.description})}\n\n")
-
-        # Attach the callback to each task
-        for task in crew.tasks:
-            task.callback = on_task_complete
+        crew = VisualComicCrew()
+        stream_callback(f"data: {json.dumps({'status': 'Crew initialized', 'details': f'CrewBase instance created'})}\n\n")
 
         stream_callback(f"data: {json.dumps({'status': 'Starting Crew Execution...', 'details': None})}\n\n")
         stream_callback(f"data: {json.dumps({'status': 'Running crew kickoff', 'details': None})}\n\n")
