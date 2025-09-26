@@ -39,12 +39,41 @@ class GeminiImageTool(BaseTool):
 
     def _run(self, prompt: str, base_image_paths: Optional[List[str]] = None) -> str:
         """Generate an image and return the saved path or an error string."""
-        print(f"🎨 DEBUG: GeminiImageTool called with prompt='{prompt[:50]}...', base_images={len(base_image_paths) if base_image_paths else 0}")
-        
+        # Defensive handling: tool callers may sometimes pass a stringified JSON blob
+        # (e.g. '"{\"prompt\": ...}"') — try to normalize it into structured args.
+        try:
+            debug_prompt_preview = prompt[:50] if isinstance(prompt, str) else str(prompt)[:50]
+        except Exception:
+            debug_prompt_preview = "<unpreviewable>"
+
+        print(f"🎨 DEBUG: GeminiImageTool called with prompt='{debug_prompt_preview}...', base_images={len(base_image_paths) if base_image_paths else 0}")
+
+        # If prompt looks like a JSON string containing the actual payload, try to parse it.
+        if isinstance(prompt, str):
+            stripped = prompt.strip()
+            if (stripped.startswith('{') and stripped.endswith('}')) or (
+                stripped.startswith('"{') and stripped.endswith('}"')
+            ):
+                import json as _json
+                try:
+                    # If it's double-quoted JSON like '"{...}"', unquote first
+                    if stripped.startswith('"') and stripped.endswith('"'):
+                        stripped = stripped[1:-1]
+                    parsed = _json.loads(stripped)
+                    if isinstance(parsed, dict):
+                        # Pull out expected keys if present
+                        if 'prompt' in parsed:
+                            prompt = parsed.get('prompt')
+                        if 'base_image_paths' in parsed:
+                            base_image_paths = parsed.get('base_image_paths')
+                except Exception:
+                    # If parsing fails, continue with original prompt value
+                    pass
+
         # Explicit validation to catch common errors
         if not isinstance(prompt, str):
             return f"Error: Prompt must be a string, got {type(prompt).__name__}: {prompt}"
-        
+
         if len(prompt.strip()) == 0:
             return "Error: Prompt cannot be empty."
             

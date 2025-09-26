@@ -5,7 +5,7 @@ from .tools.comic_layout_tool import ComicLayoutTool
 from .tools.character_consistency_tool import CharacterConsistencyTool
 from .tools.multi_character_scene_tool import MultiCharacterSceneTool
 from .tools.image_refinement_tool import ImageRefinementTool
-from .tools.orchestrator_tools import WorkflowControlTool, RetryManagerTool, StatusTrackerTool
+from .tools.orchestrator_tools import WorkflowControlTool, RetryManagerTool, StatusTrackerTool, CleanupTool
 from .tools.panel_validation_tool import PanelValidationTool
 import traceback
 import os
@@ -54,12 +54,19 @@ class VisualComicCrew():
     @agent
     def evaluator(self) -> Agent:
         print("DEBUG: Creating evaluator agent")
-        agent = Agent(
-            config=self.agents_config['evaluator'],
-            verbose=True,
-            multimodal=True,
-            tools=[PanelValidationTool()]
-        )
+        try:
+            agent = Agent(
+                config=self.agents_config['evaluator'],
+                verbose=True,
+                multimodal=True,
+                tools=[PanelValidationTool()]
+            )
+        except Exception as e:
+            print("ERROR: Exception during evaluator Agent() construction")
+            print("ERROR: ", e)
+            import traceback
+            traceback.print_exc()
+            raise
         print(f"DEBUG: evaluator agent created with LLM: {agent.llm}")
         return agent
 
@@ -70,7 +77,7 @@ class VisualComicCrew():
             config=self.agents_config['orchestrator'],
             verbose=True,
             multimodal=True,
-            tools=[WorkflowControlTool(), RetryManagerTool(), StatusTrackerTool()]
+            tools=[WorkflowControlTool(), RetryManagerTool(), StatusTrackerTool(), CleanupTool()]
         )
         print(f"DEBUG: orchestrator agent created with LLM: {agent.llm}")
         return agent
@@ -120,25 +127,112 @@ class VisualComicCrew():
     @task
     def panel_validation_task(self) -> Task:
         print("DEBUG: Creating panel_validation_task")
-        return Task(
-            config=self.tasks_config['panel_validation_task']
-        )
+        print(f"DEBUG: panel_validation_task config: {self.tasks_config.get('panel_validation_task')}")
+        try:
+            task = Task(
+                config=self.tasks_config['panel_validation_task']
+            )
+            print(f"DEBUG: panel_validation_task created: {task}")
+            return task
+        except Exception as e:
+            print(f"ERROR: Exception in panel_validation_task: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
 
     @task
     def comic_assembly_task(self) -> Task:
         print("DEBUG: Creating comic_assembly_task")
-        return Task(
+        # Extra debug: print the config being used
+        print(f"DEBUG: comic_assembly_task config: {self.tasks_config.get('comic_assembly_task')}")
+        task = Task(
             config=self.tasks_config['comic_assembly_task']
         )
+        print(f"DEBUG: comic_assembly_task created: {task}")
+        return task
 
     @crew
     def crew(self) -> Crew:
         print("DEBUG: Creating crew instance")
-        crew_instance = Crew(
-            agents=self.agents,
-            tasks=self.tasks,
-            process=Process.sequential,
-            verbose=True
-        )
-        print(f"DEBUG: Crew created with {len(crew_instance.agents)} agents and {len(crew_instance.tasks)} tasks")
-        return crew_instance
+        try:
+            # Surface configs for debugging
+            try:
+                agent_keys = list(self.agents_config.keys()) if getattr(self, 'agents_config', None) else []
+            except Exception:
+                agent_keys = '<unavailable>'
+            try:
+                task_keys = list(self.tasks_config.keys()) if getattr(self, 'tasks_config', None) else []
+            except Exception:
+                task_keys = '<unavailable>'
+            print(f"DEBUG: agents_config keys: {agent_keys}")
+            print(f"DEBUG: tasks_config keys: {task_keys}")
+
+            # Force evaluation of agents and tasks and log each one
+            print("DEBUG: Enumerating agents to force creation...")
+            try:
+                agents_obj = self.agents
+                print(f"DEBUG: self.agents type: {type(agents_obj)}")
+                try:
+                    print(f"DEBUG: self.agents repr: {repr(agents_obj)}")
+                except Exception:
+                    pass
+                # Try common iteration patterns
+                if hasattr(agents_obj, 'items'):
+                    for k, v in agents_obj.items():
+                        print(f"DEBUG: agent entry: {k} -> {v}")
+                elif isinstance(agents_obj, (list, tuple, set)):
+                    for idx, v in enumerate(agents_obj):
+                        print(f"DEBUG: agent[{idx}] -> {v}")
+                else:
+                    print(f"DEBUG: agents object has attrs: {dir(agents_obj)[:20]}")
+            except Exception as e:
+                print(f"ERROR enumerating agents: {e}")
+
+            print("DEBUG: Enumerating tasks to force creation...")
+            try:
+                tasks_obj = self.tasks
+                print(f"DEBUG: self.tasks type: {type(tasks_obj)}")
+                try:
+                    print(f"DEBUG: self.tasks repr: {repr(tasks_obj)}")
+                except Exception:
+                    pass
+                if hasattr(tasks_obj, 'items'):
+                    for k, v in tasks_obj.items():
+                        print(f"DEBUG: task entry: {k} -> {v}")
+                elif isinstance(tasks_obj, (list, tuple, set)):
+                    for idx, v in enumerate(tasks_obj):
+                        print(f"DEBUG: task[{idx}] -> {v}")
+                else:
+                    print(f"DEBUG: tasks object has attrs: {dir(tasks_obj)[:20]}")
+            except Exception as e:
+                print(f"ERROR enumerating tasks: {e}")
+
+            crew_instance = Crew(
+                agents=self.agents,
+                tasks=self.tasks,
+                process=Process.sequential,
+                verbose=True
+            )
+            print(f"DEBUG: Crew created with {len(crew_instance.agents)} agents and {len(crew_instance.tasks)} tasks")
+            return crew_instance
+        except Exception as e:
+            print("ERROR: Exception during Crew() construction")
+            print("ERROR:", e)
+            traceback.print_exc()
+            raise
+
+    # Backwards compatibility helpers
+    def kickoff(self, inputs: dict = None):
+        """Compatibility: allow calling kickoff directly on the CrewBase-decorated class instance.
+
+        This forwards to the underlying Crew instance's kickoff method.
+        """
+        print("DEBUG: VisualComicCrew.kickoff called - forwarding to crew().kickoff")
+        return self.crew().kickoff(inputs=inputs or {})
+
+    def run(self, inputs: dict = None):
+        """Alias for kickoff to support older call sites that use `run` or `kickoff`.
+        """
+        print("DEBUG: VisualComicCrew.run called - forwarding to crew().kickoff")
+        return self.kickoff(inputs=inputs or {})
+

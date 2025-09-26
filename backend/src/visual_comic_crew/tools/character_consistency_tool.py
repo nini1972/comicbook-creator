@@ -59,12 +59,24 @@ class CharacterConsistencyTool(BaseTool):
         cache_dir = Path("output/character_references")
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / "character_cache.txt"
+        def _get_character_cache_path(self) -> Path:
+            """Get the path to the character cache file"""
+            repo_root = Path(__file__).resolve().parents[2]
+            cache_dir = repo_root / "output" / "character_references"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            return cache_dir / "character_cache.txt"
     
     def _get_panel_cache_path(self) -> Path:
         """Get the path to the panel generation cache file"""
         cache_dir = Path("output/character_references")
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / "panel_cache.txt"
+        def _get_panel_cache_path(self) -> Path:
+            """Get the path to the panel generation cache file"""
+            repo_root = Path(__file__).resolve().parents[2]
+            cache_dir = repo_root / "output" / "character_references"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            return cache_dir / "panel_cache.txt"
     
     def _generate_panel_cache_key(self, character_name: str, scene_description: str, panel_number: int) -> str:
         """Generate a unique cache key for panel generation"""
@@ -202,13 +214,13 @@ class CharacterConsistencyTool(BaseTool):
                 print(f"🎭 Using character reference(s): {base_image_paths}")
 
             print(f"🎨 Generating image with prompt: {prompt[:100]}...")
-            
+
             # Make only one call if single_call is True to prevent duplicates
             if single_call:
                 print(f"⚡ Single-call mode: optimized generation")
-            
+
             response = requests.post(self.server_url, json=payload, timeout=120)
-            
+
             if response.status_code == 200:
                 result = response.json()
                 # Handle both response formats for compatibility
@@ -224,7 +236,6 @@ class CharacterConsistencyTool(BaseTool):
                 error_msg = f"HTTP error {response.status_code}: {response.text}"
                 print(f"❌ {error_msg}")
                 return f"❌ {error_msg}"
-                
         except Exception as e:
             error_msg = f"Error during image generation: {str(e)}"
             print(f"❌ {error_msg}")
@@ -281,16 +292,25 @@ class CharacterConsistencyTool(BaseTool):
             
             # Create new filename for character reference
             reference_path = char_ref_dir / f"{character_name.lower()}_reference.png"
-            
-            # Copy the generated image to character references
+            # If you want repo-relative path, uncomment below and use instead:
+            # repo_root = Path(__file__).resolve().parents[2]
+            # char_ref_dir = repo_root / "output" / "character_references"
+            # reference_path = char_ref_dir / f"{character_name.lower()}_reference.png"
             # Use direct copy instead of copy_image_to_output since character refs go to different folder
             shutil.copy2(source_path, reference_path)
             
-            # Also copy to frontend character references for consistency
-            frontend_char_ref_dir = Path("../frontend/public/character_references")
+            # Also copy to repo-level frontend character references for consistency
+            repo_root = Path(__file__).resolve()
+            # climb up until we find a frontend folder or reach filesystem root
+            while repo_root != repo_root.parent and not (repo_root / "frontend").exists():
+                repo_root = repo_root.parent
+            frontend_char_ref_dir = (repo_root / "frontend" / "public" / "character_references") if (repo_root / "frontend").exists() else Path("../frontend/public/character_references")
             frontend_char_ref_dir.mkdir(parents=True, exist_ok=True)
             frontend_ref_path = frontend_char_ref_dir / reference_path.name
-            shutil.copy2(source_path, frontend_ref_path)
+            try:
+                shutil.copy2(source_path, frontend_ref_path)
+            except Exception as e:
+                print(f"⚠️ Failed to copy character reference to frontend: {e}")
             
             backend_path = reference_path
             frontend_path = frontend_ref_path
@@ -412,12 +432,11 @@ class CharacterConsistencyTool(BaseTool):
             # Create filename for consistent panel
             panel_filename = f"consistent_panel_{panel_number:03d}_{character_key}_{int(time.time() * 1000)}.png"
             panel_path = Path("output/comic_panels") / panel_filename
-            
+            # If you want repo-relative path, uncomment below and use instead:
+            # repo_root = Path(__file__).resolve().parents[2]
+            # panel_path = repo_root / "output" / "comic_panels" / panel_filename
             # Define panel_id for registry updates
             panel_id = f"panel_{panel_number}"
-
-            # Ensure comic_panels directory exists
-            panel_path.parent.mkdir(parents=True, exist_ok=True)
             
             # Copy the generated image
             try:
@@ -469,18 +488,14 @@ class CharacterConsistencyTool(BaseTool):
             char_ref_dir = Path("output/character_references")
             if not char_ref_dir.exists():
                 return "📚 No character references directory found."
-            
             references = list(char_ref_dir.glob("*_reference.png"))
             if not references:
                 return "📚 No character references found."
-            
             result = "📚 Available character references:\n"
             for ref in references:
                 character_name = ref.stem.replace("_reference", "").title()
                 result += f"   - {character_name}: {ref}\n"
-            
             return result.strip()
-            
         except Exception as e:
             return f"❌ Error listing character references: {str(e)}"
 

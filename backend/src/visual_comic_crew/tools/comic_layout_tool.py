@@ -26,51 +26,55 @@ class ComicLayoutTool(BaseTool):
         """Discover recently generated images from the backend comic_panels directory."""
         try:
             # Look for images in the backend output directory
-            comic_panels_dir = os.path.join("output", "comic_panels")
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+            comic_panels_dir = os.path.join(repo_root, "output", "comic_panels")
             if not os.path.exists(comic_panels_dir):
                 print(f"[ComicLayoutTool] Directory not found: {comic_panels_dir}")
                 return None
-            
+
             # Get all PNG files sorted by modification time (newest first)
             pattern = os.path.join(comic_panels_dir, "*.png")
             image_files = glob.glob(pattern)
-            
+
             if not image_files:
                 print("[ComicLayoutTool] No PNG files found in comic_panels directory")
                 return None
-            
+
             # Sort by modification time (newest first)
             image_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
-            
+
             # Filter to recent images (within last 10 minutes to catch current generation)
             recent_cutoff = datetime.now() - timedelta(minutes=10)
             recent_images = []
-            
+
             for img_file in image_files:
                 mod_time = datetime.fromtimestamp(os.path.getmtime(img_file))
                 if mod_time >= recent_cutoff:
                     recent_images.append(img_file)
-            
+
             if not recent_images:
                 print("[ComicLayoutTool] No recent images found (within 10 minutes)")
                 return None
-            
+
             print(f"[ComicLayoutTool] Found {len(recent_images)} recent images")
-            
+
             # Take the most recent images up to expected count
             selected_images = recent_images[:expected_count]
-            
+
             # Pad with None if we don't have enough images
             while len(selected_images) < expected_count:
                 selected_images.append(None)
-            
+
             return selected_images
-            
         except Exception as e:
             print(f"[ComicLayoutTool] Error discovering images: {e}")
             return None
 
     def _run(self, panels: List[str], dialogue: List[str], image_paths: Optional[List[str]] = None) -> str:
+        print("DEBUG: ComicLayoutTool._run called")
+        print(f"DEBUG: panels: {panels}")
+        print(f"DEBUG: dialogue: {dialogue}")
+        print(f"DEBUG: image_paths: {image_paths}")
         if len(panels) != len(dialogue):
             return (
                 f"Error: panels ({len(panels)}) and dialogue ({len(dialogue)}) count mismatch. "
@@ -91,38 +95,39 @@ class ComicLayoutTool(BaseTool):
         # Copy images to frontend public directory if they exist
         frontend_image_paths = []
         if image_paths:
-            frontend_public_dir = os.path.join("..", "frontend", "public", "comic_panels")
-            os.makedirs(frontend_public_dir, exist_ok=True)
-            
-            for img_path in image_paths:
-                if img_path:
-                    filename = os.path.basename(img_path)
-                    # Try to find the image in backend output directory
-                    backend_img_path = None
-                    if os.path.exists(img_path):
-                        backend_img_path = img_path
+                repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+                frontend_public_dir = os.path.join(repo_root, "frontend", "public", "comic_panels")
+                os.makedirs(frontend_public_dir, exist_ok=True)
+
+                for img_path in image_paths:
+                    if img_path:
+                        filename = os.path.basename(img_path)
+                        # Try to find the image in backend output directory
+                        backend_img_path = None
+                        if os.path.exists(img_path):
+                            backend_img_path = img_path
+                        else:
+                            # Try backend output comic_panels directory
+                            possible_path = os.path.join(repo_root, "output", "comic_panels", filename)
+                            if os.path.exists(possible_path):
+                                backend_img_path = possible_path
+
+                        if backend_img_path:
+                            frontend_path = os.path.join(frontend_public_dir, filename)
+                            try:
+                                shutil.copy2(backend_img_path, frontend_path)
+                                # Always use frontend path format
+                                frontend_image_paths.append(f"/comic_panels/{filename}")
+                                print(f"[ComicLayoutTool] Copied image to frontend: {frontend_path}")
+                            except Exception as e:
+                                print(f"[ComicLayoutTool] Failed to copy {backend_img_path}: {e}")
+                                # Still use frontend path format even if copy failed
+                                frontend_image_paths.append(f"/comic_panels/{filename}")
+                        else:
+                            print(f"[ComicLayoutTool] Image not found: {img_path}")
+                            frontend_image_paths.append(None)
                     else:
-                        # Try backend output comic_panels directory
-                        possible_path = os.path.join("output", "comic_panels", filename)
-                        if os.path.exists(possible_path):
-                            backend_img_path = possible_path
-                    
-                    if backend_img_path:
-                        frontend_path = os.path.join(frontend_public_dir, filename)
-                        try:
-                            shutil.copy2(backend_img_path, frontend_path)
-                            # Always use frontend path format
-                            frontend_image_paths.append(f"/comic_panels/{filename}")
-                            print(f"[ComicLayoutTool] Copied image to frontend: {frontend_path}")
-                        except Exception as e:
-                            print(f"[ComicLayoutTool] Failed to copy {backend_img_path}: {e}")
-                            # Still use frontend path format even if copy failed
-                            frontend_image_paths.append(f"/comic_panels/{filename}")
-                    else:
-                        print(f"[ComicLayoutTool] Image not found: {img_path}")
                         frontend_image_paths.append(None)
-                else:
-                    frontend_image_paths.append(None)
         
         layout_lines = ["# Comic Strip Layout", ""]
         for i, (panel, dial) in enumerate(zip(panels, dialogue), start=1):

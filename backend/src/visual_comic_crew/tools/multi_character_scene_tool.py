@@ -35,7 +35,8 @@ class MultiCharacterSceneTool(BaseTool):
         super().__init__()
 
     def _get_character_reference_path(self, character_name: str) -> Optional[Path]:
-        char_ref_dir = Path("output/character_references")
+        repo_root = Path(__file__).resolve().parents[2]
+        char_ref_dir = repo_root / "output" / "character_references"
         if not char_ref_dir.exists():
             return None
 

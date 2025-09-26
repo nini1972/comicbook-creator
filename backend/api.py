@@ -9,6 +9,8 @@ import re
 import os
 import sys
 from pathlib import Path
+from src.visual_comic_crew.crew import VisualComicCrew
+from crewai.tasks.task_output import TaskOutput
 
 # Load environment variables from .env file
 try:
@@ -19,8 +21,6 @@ try:
 except ImportError:
     print("DEBUG: python-dotenv not available, environment variables may not be loaded")
 
-from src.visual_comic_crew.crew import VisualComicCrew
-from crewai.tasks.task_output import TaskOutput
 
 # Add the backend directory to the Python path to allow for package imports
 sys.path.append(str(Path(__file__).resolve().parent))
@@ -50,7 +50,7 @@ app.add_middleware(
 )
 
 # Mount static files for serving images
-app.mount("/images", StaticFiles(directory="output"), name="images")
+app.mount("/images", StaticFiles(directory=str(Path(__file__).parent / "output")), name="images")
 
 def sanitize_filename(name: str) -> str:
     """Sanitizes a string to be a valid filename."""
@@ -70,7 +70,15 @@ async def run_crew_stream(topic: str, stream_callback):
 
         stream_callback(f"data: {json.dumps({'status': 'Starting Crew Execution...', 'details': None})}\n\n")
         stream_callback(f"data: {json.dumps({'status': 'Running crew kickoff', 'details': None})}\n\n")
-        result = crew.kickoff(inputs=inputs)
+        # The CrewBase-decorated class exposes a `crew()` method that returns the Crew instance.
+        # Call kickoff on that Crew instance to execute the workflow.
+        try:
+            stream_callback(f"data: {json.dumps({'status': 'Calling crew().kickoff', 'details': None})}\n\n")
+            result = crew.crew().kickoff(inputs=inputs)
+        except Exception as e:
+            # Surface any attribute or execution errors back to the stream
+            stream_callback(f"data: {json.dumps({'status': 'error', 'details': str(e)})}\n\n")
+            return
         # Debug: describe result type
         result_type = type(result).__name__
         stream_callback(f"data: {json.dumps({'status': 'Crew execution finished', 'details': f'Result type: {result_type}'})}\n\n")
@@ -101,7 +109,7 @@ async def run_crew_stream(topic: str, stream_callback):
         stream_callback(f"data: {json.dumps({'status': 'Crew execution finished', 'details': f'Extracted length: {len(markdown_content)} chars'})}\n\n")
 
         # Save the final result
-        output_dir = Path("output")
+        output_dir = Path(__file__).parent / "output"
         output_dir.mkdir(exist_ok=True)
         output_filename = f"{sanitize_filename(topic)}.md"
         save_path = output_dir / output_filename

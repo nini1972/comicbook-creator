@@ -1,3 +1,34 @@
+# Repo-level .gitignore
+# Ignore environment files (keep secrets local)
+.env*
+
+# Python virtualenvs
+.venv/
+venv/
+__pycache__/
+
+# Editor temp files
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# Node modules in frontend
+/frontend/node_modules/
+
+# VSCode settings
+.vscode/
 .env
 __pycache__/
 .DS_Store
+# Output folders (generated images and data)
+backend/output/
+frontend/public/comic_panels/
+frontend/public/character_references/
+
+# Temp folders (if you want to ignore them)
+**/temp_*/
+
+
+#Ignore vscode AI rules
+.github\instructions\codacy.instructions.md

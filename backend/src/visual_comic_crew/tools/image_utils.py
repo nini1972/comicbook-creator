@@ -70,17 +70,43 @@ def verify_image_readable(path: Path) -> bool:
 
 def copy_image_to_output(source_path: Path, filename: str) -> Tuple[Path, Path]:
     """Copy image to backend and frontend directories."""
-    backend_dir = Path("output/comic_panels").resolve()
-    frontend_dir = Path("../frontend/public/comic_panels").resolve()
+    # Determine repository root by climbing up until a sibling `frontend` folder is found.
+    start = Path(__file__).resolve()
+    repo_root = start
+    while repo_root != repo_root.parent:
+        if (repo_root / "frontend").exists() and (repo_root / "backend").exists():
+            break
+        repo_root = repo_root.parent
 
+    # Fallback to parent-of-backend if we didn't find an obvious repo root
+    if (repo_root / "frontend").exists():
+        base = repo_root
+    else:
+        # try one level up from backend (handles the common workspace layout)
+        base = Path(__file__).parents[3].parent if len(Path(__file__).parents) >= 4 else Path(__file__).parents[3]
+
+    backend_dir = base / "backend" / "output" / "comic_panels"
+    frontend_dir = base / "frontend" / "public" / "comic_panels"
+
+    # Ensure directories exist
     backend_dir.mkdir(parents=True, exist_ok=True)
     frontend_dir.mkdir(parents=True, exist_ok=True)
 
     backend_path = backend_dir / filename
     frontend_path = frontend_dir / filename
 
-    shutil.copy2(source_path, backend_path)
-    shutil.copy2(source_path, frontend_path)
+    # Copy with safe guards and informative prints
+    try:
+        shutil.copy2(source_path, backend_path)
+        print(f"[image_utils] Copied to backend: {backend_path}")
+    except Exception as e:
+        print(f"[image_utils] Failed to copy to backend: {e}")
+
+    try:
+        shutil.copy2(source_path, frontend_path)
+        print(f"[image_utils] Copied to frontend: {frontend_path}")
+    except Exception as e:
+        print(f"[image_utils] Failed to copy to frontend: {e}")
 
     return backend_path, frontend_path
 

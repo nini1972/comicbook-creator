@@ -56,9 +56,11 @@ Let's create wonders together with the power and simplicity of crewAI.
 
 ## killing Backend
 ### to find Process ID
-(Get-NetTCPConnection -LocalPort 8001).OwningProcess
+(Get-NetTCPConnection -LocalPort 8002).OwningProcess
 
 ### to kill Process ID
 stop-process -Id <ProcessID> -Force
 ## stop frontend
 stop-process -Id (Get-NetTCPConnection -LocalPort 3000).OwningProcess -Force
+
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/b923bd9fc0bf4e4d8666236c79b2ec2c)](https://app.codacy.com/gh/nini1972/comicbook-creator/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)

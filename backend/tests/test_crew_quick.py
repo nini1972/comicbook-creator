@@ -5,7 +5,11 @@ Quick test of character consistency within crew workflow.
 
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+# Ensure the repo's backend/src directory is on sys.path so imports like
+# `visual_comic_crew.crew` resolve when running tests from the tests/ folder.
+# The original code appended a non-existent tests/src path which caused
+# Pylance/reportMissingImports and runtime import errors.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 from visual_comic_crew.crew import VisualComicCrew
 

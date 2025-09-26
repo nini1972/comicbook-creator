@@ -82,3 +82,5 @@ the crimson enigma=output\character_references\the crimson enigma_reference.png
 detective harding=output\character_references\detective harding_reference.png
 crimson enigma=output\character_references\crimson enigma_reference.png
 the owner=output\character_references\the owner_reference.png
+lina=output\character_references\lina_reference.png
+cosmic entity=output\character_references\cosmic entity_reference.png

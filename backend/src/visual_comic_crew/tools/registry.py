@@ -2,7 +2,7 @@ import yaml
 import os
 from pathlib import Path
 
-REGISTRY_PATH = Path("output/panel_registry.yaml")
+REGISTRY_PATH = Path(__file__).parents[2] / "output" / "panel_registry.yaml"
 
 def _ensure_registry_exists():
     """Create registry file if it doesn't exist."""

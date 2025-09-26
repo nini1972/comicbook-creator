@@ -3,6 +3,9 @@ from typing import Type, Dict, List, Any
 from pydantic import BaseModel, Field
 import time
 import json
+import os
+import shutil
+from pathlib import Path
 
 def _dbg(msg: str):
     print(f"[OrchestratorTool] {msg}")
@@ -320,3 +323,100 @@ RECOMMENDATIONS:
             return "❌ Maximum retries reached. Consider manual intervention or parameter adjustment."
         else:
             return f"🔄 Retry recommended for {len(failed_panels)} failed panels."
+
+
+class CleanupToolSchema(BaseModel):
+    """Schema for cleanup tool parameters."""
+    temp_folders: List[str] = Field(
+        description="List of temporary folder paths to clean up"
+    )
+    keep_recent: int = Field(
+        default=5,
+        description="Number of most recent files to keep in each folder (0 = delete all)"
+    )
+
+
+class CleanupTool(BaseTool):
+    name: str = "Cleanup Tool"
+    description: str = (
+        "Cleans up temporary files and folders after comic generation to prevent accumulation. "
+        "Removes temp folders and keeps only the most recent files if specified."
+    )
+    args_schema: Type[BaseModel] = CleanupToolSchema
+
+    def _run(self, temp_folders: List[str], keep_recent: int = 5) -> str:
+        """Clean up temporary folders and files."""
+        
+        _dbg(f"Starting cleanup of {len(temp_folders)} temp folders, keeping {keep_recent} recent files each")
+        
+        total_cleaned = 0
+        total_kept = 0
+        errors = []
+        
+        for folder_path in temp_folders:
+            try:
+                folder = Path(folder_path)
+                
+                if not folder.exists():
+                    _dbg(f"Folder {folder_path} does not exist, skipping")
+                    continue
+                    
+                if not folder.is_dir():
+                    _dbg(f"Path {folder_path} is not a directory, skipping")
+                    continue
+                
+                # Get all files in the folder
+                files = list(folder.glob("*"))
+                files = [f for f in files if f.is_file()]
+                
+                if not files:
+                    _dbg(f"No files in {folder_path}")
+                    continue
+                
+                # Sort by modification time (newest first)
+                files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+                
+                # Determine which files to delete
+                if keep_recent > 0:
+                    files_to_delete = files[keep_recent:]
+                    files_to_keep = files[:keep_recent]
+                else:
+                    files_to_delete = files
+                    files_to_keep = []
+                
+                # Delete old files
+                for file_path in files_to_delete:
+                    try:
+                        file_path.unlink()
+                        total_cleaned += 1
+                        _dbg(f"Deleted: {file_path}")
+                    except Exception as e:
+                        error_msg = f"Failed to delete {file_path}: {str(e)}"
+                        _dbg(error_msg)
+                        errors.append(error_msg)
+                
+                total_kept += len(files_to_keep)
+                
+                _dbg(f"Cleaned {folder_path}: kept {len(files_to_keep)}, deleted {len(files_to_delete)} files")
+                
+            except Exception as e:
+                error_msg = f"Error cleaning folder {folder_path}: {str(e)}"
+                _dbg(error_msg)
+                errors.append(error_msg)
+        
+        # Summary report
+        summary = f"""
+CLEANUP COMPLETED:
+- Total files cleaned: {total_cleaned}
+- Total files kept: {total_kept}
+- Errors encountered: {len(errors)}
+
+Folders processed: {temp_folders}
+Keep recent setting: {keep_recent}
+"""
+        
+        if errors:
+            summary += f"\nERRORS:\n" + "\n".join(errors)
+        
+        _dbg("Cleanup completed")
+        return summary

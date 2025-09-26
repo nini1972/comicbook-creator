@@ -15,7 +15,7 @@ except ImportError:
 
 from datetime import datetime
 
-from visual_comic_crew.crew import VisualComicCrew
+from ..src.visual_comic_crew.crew import VisualComicCrew
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 
@@ -58,77 +58,17 @@ def run():
     
     try:
         print("DEBUG: About to create VisualComicCrew instance")
-        # Early check: detect whether any expected LLM / Generative API credentials are present.
-        # This prevents long, hard-to-read tracebacks coming from underlying LLM libraries
-        # (for example: litellm / Google Gemini) when a key is missing or None.
-        expected_keys = [
-            "GOOGLE_API_KEY",
-            "GENAI_API_KEY",
-            "GEMINI_API_KEY",
-            "GOOGLE_APPLICATION_CREDENTIALS",
-            "GOOGLE_GENERATIVE_API_KEY",
-            "OPENAI_API_KEY",
-            "LITELLM_API_KEY",
-        ]
-        found = [k for k in expected_keys if os.getenv(k)]
-        if not found:
-            print("ERROR: No LLM/Generative API credentials detected.")
-            print("ERROR: Please set one of the following environment variables (or add it to your .env file):")
-            print("  " + ", ".join(expected_keys))
-            # Show a short sample of present environment variable keys to help debugging
-            sample = [k for k in os.environ.keys() if any(token in k.upper() for token in ("API", "KEY", "GOOGLE", "OPENAI", "GEMINI"))]
-            if sample:
-                print("DEBUG: Detected environment keys (sample): " + ", ".join(sample[:20]))
-            else:
-                print("DEBUG: No obvious API-related environment variables found.")
-            raise Exception("Missing LLM/Generative API credentials. Aborting early to avoid confusing tracebacks.")
-        else:
-            # For debugging, show a masked preview (first 3 chars) of any detected candidate keys
-            previews = []
-            for k in found:
-                v = os.getenv(k) or ""
-                masked = (v[:3] + "...") if len(v) >= 3 else (v + "...")
-                previews.append(f"{k} prefix='{masked}'")
-            print("DEBUG: Detected candidate API credentials (masked): " + ", ".join(previews))
-
         crew_instance = VisualComicCrew()
         print("DEBUG: VisualComicCrew instance created successfully")
-
+        
         print("DEBUG: About to call crew().kickoff()")
         result = crew_instance.crew().kickoff(inputs=inputs)
         print(f"DEBUG: Crew execution completed. Result: {result}")
-
-        # Additional debug output to confirm result handling
-        if hasattr(result, 'final_output'):
-            print(f"DEBUG: final_output: {getattr(result, 'final_output')}")
-        elif hasattr(result, 'output'):
-            print(f"DEBUG: output: {getattr(result, 'output')}")
-        elif isinstance(result, str):
-            print(f"DEBUG: result (str): {result}")
-        elif isinstance(result, (list, tuple)):
-            print(f"DEBUG: result (list/tuple): {result}")
-        else:
-            print(f"DEBUG: result (unknown type): {result}")
-
+        
     except Exception as e:
         print(f"DEBUG: Exception occurred: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
-        # Show which of the expected candidate keys were present (masked) to help identify which key the run used for testing
-        try:
-            set_keys = [k for k in expected_keys if os.getenv(k)]
-            if set_keys:
-                previews = []
-                for k in set_keys:
-                    v = os.getenv(k) or ""
-                    masked = (v[:3] + "...") if len(v) >= 3 else (v + "...")
-                    previews.append(f"{k} prefix='{masked}'")
-                print("DEBUG: Candidate API keys present (masked): " + ", ".join(previews))
-            else:
-                print("DEBUG: No expected candidate API keys were set in the environment at exception time.")
-        except Exception:
-            # Be very careful not to raise while handling the original exception
-            print("DEBUG: Failed to compute masked API key previews.")
         raise Exception(f"An error occurred while running the crew: {e}")
 
 

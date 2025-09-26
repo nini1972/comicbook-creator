@@ -12,8 +12,8 @@ def _dbg(msg: str):
     print(f"[Sync] {msg}")
 
 def poll_for_image_sync(panel_paths: Dict[str, str], 
-                       backend_dir: str = "output/comic_panels",
-                       frontend_dir: str = "frontend/public/comic_panels", 
+                       backend_dir: str = None,
+                       frontend_dir: str = None, 
                        retries: int = 3, 
                        delay: float = 2.5) -> Dict[str, Dict[str, bool]]:
     """
@@ -31,9 +31,10 @@ def poll_for_image_sync(panel_paths: Dict[str, str],
     """
     _dbg(f"Starting sync polling for {len(panel_paths)} panels")
     
-    # Convert to absolute paths
-    backend_path = Path("C:/Users/ninic/projects/CrewAI/comicbook/backend") / backend_dir
-    frontend_path = Path("C:/Users/ninic/projects/CrewAI/comicbook") / frontend_dir
+    # Use repo-relative paths for backend and frontend comic panels
+    repo_root = Path(__file__).resolve().parents[3]
+    backend_path = repo_root / "backend" / "output" / "comic_panels"
+    frontend_path = repo_root / "frontend" / "public" / "comic_panels"
     
     sync_status = {}
     
