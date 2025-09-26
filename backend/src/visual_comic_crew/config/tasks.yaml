@@ -3,7 +3,7 @@ story_creation_task:
     Create a comic story script for {topic} with:
     1. A compelling storyline with beginning, middle, and end
     2. 4-6 panel breakdown with detailed visual descriptions
-    3. Character descriptions and dialogue for each panel
+    3. Character and scene descriptions and dialogue for each panel
     4. Visual style guidelines and mood specifications
   expected_output: >
     A detailed comic script with panel-by-panel descriptions,
@@ -38,8 +38,8 @@ orchestrated_generation_task:
     - Report final success/failure status with specific details
 
     RESOURCE MANAGEMENT:
-    - Maximum retry limit: 3 attempts per panel
-    - Total generation timeout: 10 minutes
+    - Maximum retry limit: 2 attempts per panel
+    - Total generation timeout: 5 minutes
     - Graceful degradation for persistent failures
     - Clear error reporting for manual intervention
     - Automatic cleanup of temporary files and folders
@@ -122,8 +122,8 @@ panel_validation_task:
     VALIDATION REQUIREMENTS:
     1. Extract actual panel-to-filename mapping from image generation output
     2. For EACH panel number and filename in the mapping:
-       - Check if the filename exists in the backend output folder
-       - Check if the filename exists in the frontend comic_panels folder
+       - Check if the filename exists in the backend/output folder/comic_panels
+       - Check if the filename exists in the frontend/public/comic_panels
        - Verify the filename is not empty/corrupted
     3. Count total panels expected vs panels with valid images
     4. Identify any missing or invalid panel images
@@ -131,7 +131,7 @@ panel_validation_task:
     VALIDATION CHECKS:
     - Panel completeness: All panels (1-6) have image references
     - File existence: All referenced images exist in filesystem, check on their filename
-    - Path validation: All paths are real (not fabricated like "panel2.png")
+    - Path validation: All paths are real (NOT fabricated like "panel2.png")
     - Accessibility: Images are accessible for frontend display
 
     CRITICAL: Do NOT use guessed filenames. Only validate actual filenames that were generated.

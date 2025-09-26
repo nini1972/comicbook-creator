@@ -1,5 +1,5 @@
 from crewai.tools import BaseTool
-from typing import Type, Dict, List
+from typing import Type, Dict, List, Union
 from pydantic import BaseModel, Field
 import os
 import re
@@ -11,7 +11,8 @@ def _dbg(msg: str):
 
 class PanelValidationToolSchema(BaseModel):
     """Input for PanelValidationTool."""
-    panel_map: Dict[str, str] = Field(None, description="Optional dictionary mapping panel numbers (e.g., '1') to their generated image filenames. If not provided, will attempt to extract from context.")
+    # Allow either a single filename string or a list of filename strings per panel
+    panel_map: Dict[str, Union[str, List[str]]] = Field(None, description="Optional dictionary mapping panel numbers (e.g., '1') to their generated image filenames. Each value can be a single filename string or a list of filename strings. If not provided, will attempt to extract from context.")
     context_text: str = Field(None, description="Optional context text from image generation task to extract panel mappings from.")
     expected_panel_count: int = Field(6, description="Expected number of panels in the comic (default: 6).")
 
@@ -125,33 +126,69 @@ class PanelValidationTool(BaseTool):
         for panel_num in range(1, expected_panel_count + 1):
             panel_key = str(panel_num)
             panel_id = f"panel_{panel_key}"
-            filename = panel_map.get(panel_key)
-            _dbg(f"_run: checking panel {panel_num}, raw filename: {filename}")
-            if not filename or "FAILED" in str(filename).upper():
-                validation_results.append(f"- Panel {panel_num}: ❌ MISSING: Generation failed or no path provided. Reason: {filename or 'N/A'}")
+            raw_value = panel_map.get(panel_key)
+            _dbg(f"_run: checking panel {panel_num}, raw filename: {raw_value}")
+
+            # Normalize allowed types: str or list[str]
+            candidates: List[str] = []
+            if isinstance(raw_value, list):
+                # flatten and keep string-like entries
+                for v in raw_value:
+                    if v is None:
+                        continue
+                    candidates.append(str(v))
+            elif isinstance(raw_value, str):
+                candidates = [raw_value]
+            else:
+                candidates = []
+
+            if not candidates or any(("FAILED" in str(c).upper() for c in candidates)):
+                validation_results.append(f"- Panel {panel_num}: ❌ MISSING: Generation failed or no path provided. Reason: {raw_value or 'N/A'}")
                 missing_panels.append(panel_num)
                 update_registry_entry(panel_id=panel_id, verified=False, filename=None)
                 continue
-            file_check = self._check_file_existence(filename)
-            _dbg(f"_run: file_check for panel {panel_num}: {file_check}")
-            normalized_filename = file_check['normalized_filename']
+
+            # Check each candidate and consider panel valid if any candidate exists in both locations
+            chosen_filename = None
+            chosen_check = None
+            for candidate in candidates:
+                file_check = self._check_file_existence(candidate)
+                _dbg(f"_run: file_check for panel {panel_num}, candidate {candidate}: {file_check}")
+                # prefer a candidate that exists in both backend and frontend
+                if file_check['backend'] and file_check['frontend']:
+                    chosen_filename = file_check['normalized_filename']
+                    chosen_check = file_check
+                    break
+                # otherwise, keep first candidate as fallback
+                if not chosen_filename:
+                    chosen_filename = file_check['normalized_filename']
+                    chosen_check = file_check
+
+            # Update registry and counts based on chosen_check
+            if chosen_check is None:
+                validation_results.append(f"- Panel {panel_num}: ❌ MISSING: {candidates} (not found in either location)")
+                missing_panels.append(panel_num)
+                update_registry_entry(panel_id=panel_id, verified=False, filename=None)
+                continue
+
+            normalized_filename = chosen_check['normalized_filename']
             update_registry_entry(
                 panel_id=panel_id,
                 filename=normalized_filename,
-                backend=file_check['backend'],
-                frontend=file_check['frontend'],
-                verified=file_check['backend'] and file_check['frontend']
+                backend=chosen_check['backend'],
+                frontend=chosen_check['frontend'],
+                verified=chosen_check['backend'] and chosen_check['frontend']
             )
-            if file_check['backend']:
+            if chosen_check['backend']:
                 backend_files_found += 1
-            if file_check['frontend']:
+            if chosen_check['frontend']:
                 frontend_files_found += 1
-            if file_check['backend'] and file_check['frontend']:
+            if chosen_check['backend'] and chosen_check['frontend']:
                 validation_results.append(f"- Panel {panel_num}: ✅ VALID: {normalized_filename}")
-            elif file_check['backend'] and not file_check['frontend']:
+            elif chosen_check['backend'] and not chosen_check['frontend']:
                 validation_results.append(f"- Panel {panel_num}: ⚠️ BACKEND ONLY: {normalized_filename} (missing from frontend)")
                 missing_panels.append(panel_num)
-            elif not file_check['backend'] and file_check['frontend']:
+            elif not chosen_check['backend'] and chosen_check['frontend']:
                 validation_results.append(f"- Panel {panel_num}: ⚠️ FRONTEND ONLY: {normalized_filename} (missing from backend)")
                 missing_panels.append(panel_num)
             else:

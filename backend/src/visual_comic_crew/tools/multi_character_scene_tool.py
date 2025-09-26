@@ -35,21 +35,68 @@ class MultiCharacterSceneTool(BaseTool):
         super().__init__()
 
     def _get_character_reference_path(self, character_name: str) -> Optional[Path]:
-        repo_root = Path(__file__).resolve().parents[2]
-        char_ref_dir = repo_root / "output" / "character_references"
-        if not char_ref_dir.exists():
-            return None
+        # Try several likely locations for character references and be fuzzy on filenames.
+        candidates_dirs = []
+        # Current working directory based path (when running from backend)
+        candidates_dirs.append(Path.cwd() / "output" / "character_references")
+        # src-based and backend-based parents to cover multiple execution contexts
+        p = Path(__file__).resolve()
+        for depth in (2, 3, 4):
+            try:
+                base = p.parents[depth]
+            except Exception:
+                continue
+            candidates_dirs.append(base / "output" / "character_references")
 
-        possible_names = [
-            f"{character_name.lower().replace(' ', '_')}_reference.png",
-            f"{character_name.lower().replace(' ', ' ')}_reference.png",
-            f"{character_name.lower()}_reference.png",
-        ]
+        # Also check frontend public character references and backend comic_panels as fallback
+        for depth in (2, 3, 4):
+            try:
+                base = p.parents[depth]
+            except Exception:
+                continue
+            candidates_dirs.append(base / "frontend" / "public" / "character_references")
+            candidates_dirs.append(base / "output" / "comic_panels")
 
-        for filename in possible_names:
-            ref_file = char_ref_dir / filename
-            if ref_file.exists():
-                return ref_file
+        # Normalize and deduplicate directories
+        seen = set()
+        dirs = []
+        for d in candidates_dirs:
+            try:
+                d_res = d.resolve()
+            except Exception:
+                d_res = d
+            if str(d_res) not in seen:
+                seen.add(str(d_res))
+                dirs.append(d_res)
+
+        name_tokens = [t for t in character_name.lower().replace('-', ' ').split() if t]
+
+        # Search in candidate directories for obvious exact matches first
+        for d in dirs:
+            if not d or not d.exists():
+                continue
+            # check exact patterns
+            possible_names = [
+                f"{character_name.lower().replace(' ', '_')}_reference.png",
+                f"{character_name.lower()}_reference.png",
+                f"{character_name.lower().replace(' ', '-')}_reference.png",
+            ]
+            for filename in possible_names:
+                ref_file = d / filename
+                if ref_file.exists():
+                    return ref_file
+
+        # Fuzzy search: look for any png where filename contains all tokens
+        for d in dirs:
+            if not d or not d.exists():
+                continue
+            try:
+                for f in d.glob("*.png"):
+                    stem = f.stem.lower()
+                    if all(tok in stem for tok in name_tokens):
+                        return f
+            except Exception:
+                continue
 
         return None
 
