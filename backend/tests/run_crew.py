@@ -15,7 +15,7 @@ except ImportError:
 
 from datetime import datetime
 
-from ..src.visual_comic_crew.crew import VisualComicCrew
+from backend.src.visual_comic_crew.crew import VisualComicCrew
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 

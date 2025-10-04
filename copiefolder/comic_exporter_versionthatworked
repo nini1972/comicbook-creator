@@ -1,0 +1,37 @@
+import os
+from datetime import datetime
+from pathlib import Path
+from markdown2 import markdown as md_to_html
+from weasyprint import HTML
+from src.utils.path_utils import get_backend_output_path, get_repo_root
+
+class ComicExporter:
+    def __init__(self, topic: str):
+        self.topic = topic
+        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.output_dir = get_backend_output_path("comic_exports")
+        os.makedirs(self.output_dir, exist_ok=True)
+
+    def save_markdown(self, markdown_content: str) -> str:
+        filename = f"{self.topic}_{self.timestamp}.md"
+        path = os.path.join(self.output_dir, filename)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(markdown_content)
+        print(f"[ComicExporter] Markdown saved: {path}")
+        return path
+
+
+    def generate_pdf(self, markdown_content: str) -> str:
+    # Convert markdown to HTML with extensions
+        html_content = md_to_html(markdown_content, extras=["fenced-code-blocks", "tables"])
+    
+    # Create PDF with images
+        pdf_path = os.path.join(self.output_dir, f"{self.topic}_{self.timestamp}.pdf")
+    
+    # Use HTML with base_url to properly resolve image paths
+    # The base_url should point to the repository root to resolve /comic_panels/ paths
+        base_url = str(get_repo_root().resolve())
+        HTML(string=html_content, base_url=base_url).write_pdf(pdf_path)
+    
+        print(f"[ComicExporter] PDF generated: {pdf_path}")
+        return pdf_path

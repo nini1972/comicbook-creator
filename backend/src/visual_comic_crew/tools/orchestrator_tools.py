@@ -6,6 +6,9 @@ import json
 import os
 import shutil
 from pathlib import Path
+from src.utils.registry_utils import update_registry_entry
+from src.utils.image_utils import clean_temp_folder
+
 
 def _dbg(msg: str):
     print(f"[OrchestratorTool] {msg}")
@@ -16,7 +19,7 @@ class WorkflowControlSchema(BaseModel):
     target_agent: str = Field(default="visual_director", description="Agent to delegate to (default: visual_director)")
     panel_numbers: List[int] = Field(default=[], description="Specific panel numbers to regenerate (for retry action)")
     story_context: str = Field(default="", description="Story context for generation")
-    max_attempts: int = Field(default=3, description="Maximum retry attempts per panel")
+    max_attempts: int = Field(default=2, description="Maximum retry attempts per panel")
     expected_panels: int = Field(default=6, description="Expected number of panels for status checking")
 
 class RetryManagerSchema(BaseModel):
@@ -35,7 +38,7 @@ class WorkflowControlTool(BaseTool):
     args_schema: Type[BaseModel] = WorkflowControlSchema
 
     def _run(self, action: str, target_agent: str = "visual_director", panel_numbers: List[int] = [], 
-             story_context: str = "", max_attempts: int = 3, expected_panels: int = 6) -> str:
+             story_context: str = "", max_attempts: int = 2, expected_panels: int = 6) -> str:
         """Execute workflow control actions."""
         
         _dbg(f"Executing action: {action}")
@@ -97,15 +100,16 @@ class WorkflowControlTool(BaseTool):
         """Check status of current generation process by querying registry."""
         _dbg("Checking generation status via registry")
 
-        from .registry import read_registry, get_unverified_panels
+        from src.utils.registry_utils import read_registry
 
         try:
             registry = read_registry()
-            unverified_panel_nums = get_unverified_panels(expected_panels)
+            _dbg(f"Registry data: {registry}")
 
             # Count verified panels
             verified_panels = []
             all_panels_status = []
+            unverified_panel_nums = []
 
             for i in range(1, expected_panels + 1):
                 panel_id = f"panel_{i}"
@@ -114,7 +118,8 @@ class WorkflowControlTool(BaseTool):
                 if status.get('verified'):
                     verified_panels.append(panel_id)
                 else:
-                    all_panels_status.append(f"{panel_id}: {status}")
+                    unverified_panel_nums.append(i)
+                all_panels_status.append(f"{panel_id}: {status}")
 
             status_check = f"""
 REGISTRY-BASED STATUS CHECK:
@@ -145,7 +150,7 @@ REGISTRY STATUS CHECK FAILED:
 
 Error: {e}
 
-Please check registry file at output/panel_registry.yaml
+Please check registry file at backend/output/panel_registry.yaml
 """
 
         return status_check
@@ -195,20 +200,28 @@ class RetryManagerTool(BaseTool):
         _dbg(f"Managing retry for panels {failed_panels}, attempt {current_attempt}/{max_retries}")
         
         # Patch 2: Registry-Aware Retry Filtering
-        from .registry import get_panel_status
+        from src.utils.registry_utils import read_registry
         
-        # Filter failed_panels to exclude verified ones  
+        # Filter failed_panels to exclude verified ones
         filtered_failed_panels = []
         registry_verified_panels = []
         
-        for panel_num in failed_panels:
-            panel_id = f"panel_{panel_num}"
-            status = get_panel_status(panel_id)
-            if not status.get('verified'):
-                filtered_failed_panels.append(panel_num)
-            else:
-                registry_verified_panels.append(panel_num)
-                _dbg(f"Panel {panel_num} already verified in registry - skipping retry")
+        try:
+            registry = read_registry()
+            _dbg(f"Registry data for retry filtering: {registry}")
+            
+            for panel_num in failed_panels:
+                panel_id = f"panel_{panel_num}"
+                status = registry.get(panel_id, {})
+                if not status.get('verified'):
+                    filtered_failed_panels.append(panel_num)
+                else:
+                    registry_verified_panels.append(panel_num)
+                    _dbg(f"Panel {panel_num} already verified in registry - skipping retry")
+        except Exception as e:
+            _dbg(f"Error reading registry for retry filtering: {e}")
+            # If registry read fails, use all failed panels
+            filtered_failed_panels = failed_panels
         
         # Use filtered_failed_panels for retry logic
         actual_failed_panels = filtered_failed_panels
@@ -328,6 +341,10 @@ RECOMMENDATIONS:
 class CleanupToolSchema(BaseModel):
     """Schema for cleanup tool parameters."""
     temp_folders: List[str] = Field(
+        default=[
+            "C:/Users/ninic/projects/Datacamp_projects/gemini-image-tutorial/temp_multi_character",
+            "C:/Users/ninic/projects/Datacamp_projects/gemini-image-tutorial/temp_refinement_images"
+        ],
         description="List of temporary folder paths to clean up"
     )
     keep_recent: int = Field(
@@ -420,3 +437,4 @@ Keep recent setting: {keep_recent}
         
         _dbg("Cleanup completed")
         return summary
+    

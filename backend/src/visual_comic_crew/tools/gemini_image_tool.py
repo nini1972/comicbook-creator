@@ -7,7 +7,9 @@ import time
 import shutil
 import re
 from pathlib import Path
-from .image_utils import (
+from src.utils.path_utils import get_backend_output_path,get_frontend_public_path
+from src.utils.registry_utils import update_registry_entry
+from src.utils.image_utils import (
     resolve_image_path,
     retry_file_check,
     verify_image_readable,
@@ -113,18 +115,30 @@ class GeminiImageTool(BaseTool):
          
             _dbg(f"Resolved source path: {source_path}")
             
+            # Extract panel number from the prompt (e.g., "Panel 1:", "Panel 2:", etc.)
+            panel_id = extract_panel_id(prompt)
+            
             # Extract filename from the source path
             source_filename = os.path.basename(source_image_path)
             
+            # If panel number is mentioned in prompt, modify filename to include it
+            if panel_id:
+                # Extract panel number from panel_id (e.g., "panel_1" -> "001")
+                panel_number = panel_id.split('_')[1]
+                # Create new filename with panel number
+                name_part, ext = os.path.splitext(source_filename)
+                panel_filename = f"panel_{panel_number:0>3}_{name_part}{ext}"
+            else:
+                panel_filename = source_filename
             # Define destination directory (comic_panels folder)
             # Use absolute path to avoid working directory issues
-            backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-            output_dir = os.path.join(backend_dir, "output", "comic_panels")
+            output_dir = get_backend_output_path("comic_panels")
+            # Ensure the output directory exists
             os.makedirs(output_dir, exist_ok=True)
             _dbg(f"Destination directory: {output_dir}")
             
             # Copy the image to our output directory
-            destination_path = os.path.join(output_dir, source_filename)
+            destination_path = os.path.join(output_dir, panel_filename)
             
             try:
                 # Wait a moment for file system to settle (sometimes needed after generation)
@@ -139,26 +153,23 @@ class GeminiImageTool(BaseTool):
                     return f"Image generated but source file not readable: {source_path}"
 
                 # Copy the file from Gemini Image Tutorial to our comic project
-                backend_path, frontend_path = copy_image_to_output(source_path, source_filename)
+                backend_path, frontend_path = copy_image_to_output(source_path, panel_filename)
 
                 _dbg(f"Copied to backend: {backend_path}")
                 _dbg(f"Copied to frontend: {frontend_path}") 
 
-                # Extract panel number from the prompt (e.g., "Panel 1:", "Panel 2:", etc.)
-                panel_id = None
-                panel_id = extract_panel_id(prompt)
                 if panel_id:
-                    update_registry_for_image(panel_id, source_filename, True, True)
+                    update_registry_for_image(panel_id, panel_filename, True, True)
 
-                    _dbg(f"Registry updated for {panel_id} with filename {source_filename}")
+                    _dbg(f"Registry updated for {panel_id} with filename {panel_filename}")
                    # Return the filename, which will be used by other tools
-                    return f"Image generated successfully. Filename: {source_filename}"                
+                    return f"Image generated successfully. Filename: {panel_filename}"
                 else:
-                    _dbg("Warning: Could not extract panel ID from prompt, registry not updated.")           
+                    _dbg("Warning: Could not extract panel ID from prompt, registry not updated.")
                      # Return the filename, which will be used by other tools
-                    return f"Image registered unsuccessfully, panel_id is missing. Filename: {source_filename}"
+                    return f"Image registered unsuccessfully, panel_id is missing. Filename: {panel_filename}"
                 
-            except Exception as copy_error:
+            except Exception as copy_error: 
                 _dbg(f"Failed to copy image: {copy_error}")
                 return f"Image generated but copy failed: {copy_error}. Original at: {source_image_path}"
 

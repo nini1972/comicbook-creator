@@ -1,163 +1,150 @@
 story_creation_task:
   description: >
-    Create a comic story script for {topic} with:
-    1. A compelling storyline with beginning, middle, and end
-    2. 4-6 panel breakdown with detailed visual descriptions
-    3. Character and scene descriptions and dialogue for each panel
-    4. Visual style guidelines and mood specifications
+    Create a comic story script for {topic} and save it to the centralized story metadata file:
+    1. Use StoryMetadataWriter to set the topic: action="set_topic", topic="{topic}"
+    2. Create a compelling storyline with beginning, middle, and end
+    3. Create 6 panel breakdown with detailed visual descriptions and dialogue
+    4. Save the full story text using StoryMetadataWriter: action="set_story_text"
+    5. Save the panels using StoryMetadataWriter: action="set_panels" (as JSON string)
+    6. Mark task as completed using StoryMetadataWriter: action="mark_completed", agent_name="story_writer"
+
+    Do NOT generate any images yourself - that is the Visual Director's job.
+    Save all data to the metadata file for other agents to access reliably.
   expected_output: >
-    A detailed comic script with panel-by-panel descriptions,
-    character details, dialogue, and visual style notes
+    A confirmation message that the story has been saved to the metadata file, including:
+    - Topic set successfully
+    - Full story text saved (character count)
+    - 6 panels saved with descriptions and dialogue
+    - Agent marked as completed
+
+    Do NOT include the full story or panel JSON in your response - it should be saved to the metadata file.
   agent: story_writer
+
+image_generation_task:
+  description: >
+    Generate comic panel images based on story data from the centralized metadata file:
+
+    METADATA ACCESS PHASE:
+    1. Use StoryMetadataReader with action="get_panels" to read all panel descriptions
+    2. Verify exactly 6 panels are available - if not, delegate to orchestrator
+    3. Use StoryMetadataReader with action="get_story_text" to understand story context
+
+    CHARACTER CREATION PHASE:
+    4. Identify all named characters mentioned in the panels
+    5. For EACH character, call Character Consistency Tool with action="create_character"
+       to create reference images before generating any scenes
+    6. Verify character references exist before proceeding to scene generation
+
+    SCENE GENERATION PHASE:
+    7. For each panel (1-6), use StoryMetadataReader action="get_panel" to get detailed info
+    8. Generate images using appropriate tools based on character count:
+       - Single character scenes: Character Consistency Tool (action="generate_scene")
+       - Multiple character scenes: Multi-Character Scene Tool
+       - Touch-ups for existing images: Image Refinement Tool
+       - Scenes with no characters: Gemini Image Generator
+    9. For each generated image, use StoryMetadataWriter action="set_image" to save filename
+    10. Register each generated panel in the panel registry with verified=true status
+
+    COMPLETION PHASE:
+    11. Use StoryMetadataWriter action="mark_completed", agent_name="visual_director"
+    12. Provide summary of generated images and any issues encountered
+
+    REQUIREMENTS:
+    - Create character references BEFORE generating any scenes
+    - Generate ALL panels described in the story metadata
+    - Use correct tool based on character count in each panel
+    - Save real image paths to metadata file using StoryMetadataWriter
+    - Register each generated panel in the panel registry
+    - Continue with remaining panels if any fail
+  expected_output: >
+    A summary of image generation results including:
+    - Number of panels processed from metadata file
+    - Characters identified and reference images created  
+    - Panel-by-panel generation status with actual filenames saved to metadata
+    - Any issues encountered and how they were resolved
+    - Confirmation that all images were saved to story metadata file
+    - Agent marked as completed in metadata file
+
+    Do NOT return JSON mappings in your response - save all filenames to metadata instead.
+    Provide a brief summary of what was generated and saved.
+
+  agent: visual_director
+  context:
+    - story_creation_task
 
 orchestrated_generation_task:
   description: |
     Orchestrate complete comic generation with validation and retry logic.
 
     ORCHESTRATION WORKFLOW:
-    1. INITIAL GENERATION: Delegate to Visual Director for initial panel generation
-    2. VALIDATION CHECK: Review generation results and validate panel completeness
-    3. RETRY LOGIC: For any failed or missing panels:
+    1. VERIFY JSON file received from the Visual Director with the panel descriptions, dialogues and the actual filenames. In case of missing parts, inform the Visual Director to regenerate the missing parts.
+    2. REGISTRY VERIFICATION: Check panel registry for completed panels after the Visual Director finishes
+    3. VALIDATION CHECK: Review generation results and validate panel completeness
+    4. RETRY LOGIC: For any failed or missing panels:
        - Identify specific failed panel numbers
        - Delegate regeneration of ONLY failed panels to Visual Director
        - Maximum 2 retry attempts per panel
        - Continue until all panels succeed or max retries reached
-    4. FINAL VALIDATION: Ensure all panels are complete before proceeding
-    5. CLEANUP: Remove temporary files and folders created during generation
+    4. FINAL VALIDATION: Ensure all panels are complete and registered before proceeding
+    5. CLEANUP: After successful generation of the comicbook, remove all temporary files created during generation
+    6. REPORTING: Provide a comprehensive report of the entire process including successes, failures, and cleanup status
 
-    RETRY STRATEGY:
+  RETRY STRATEGY:
     - Track failed panels individually
     - Regenerate only missing/failed panels (not all panels)
     - Provide clear feedback to Visual Director about what needs regeneration
     - Implement progressive retry with detailed failure analysis
 
-    QUALITY CONTROL:
+  QUALITY CONTROL:
     - Work with Evaluator to validate panel existence
     - Ensure no fabricated filenames are accepted
+    - Verify all panels are registered in panel registry with verified=true
     - Maintain detailed logs of retry attempts and results
     - Report final success/failure status with specific details
+    - Work with the Panel Registry Inspector to ensure all images are reviewed on quality (visual fidelity, consistency, etc.).
 
-    RESOURCE MANAGEMENT:
-    - Maximum retry limit: 2 attempts per panel
+  TIMEOUTS:
+    - Maximum retry limit: 3attempts per panel
     - Total generation timeout: 5 minutes
     - Graceful degradation for persistent failures
     - Clear error reporting for manual intervention
     - Automatic cleanup of temporary files and folders
 
-    SUCCESS CRITERIA:
+  SUCCESS CRITERIA:
     - ALL panels (1-6) successfully generated with real image files
     - All images exist in both backend and frontend locations
     - Panel validation returns 100% PASS status
     - No fabricated or non-existent image references
+    - All panels registered in panel registry with verified=true
     - Temporary files and folders cleaned up successfully
-  expected_output: >
+
+  expected_output: |
     Complete orchestration report with:
-    - Initial generation attempt results
-    - Retry attempts and outcomes for failed panels
-    - Final panel generation status (SUCCESS/PARTIAL/FAILED)
-    - Detailed panel-by-panel validation results
-    - Total attempts, successes, and failures
-    - Cleanup results (files removed, folders cleaned)
-    - Clear recommendation for next steps (proceed to assembly or manual intervention)
+      - Initial generation attempt results
+      - Retry attempts and outcomes for failed panels
+      - Final panel generation status (SUCCESS/PARTIAL/FAILED)
+      - Detailed panel-by-panel validation results
+      - Registry verification status for all panels
+      - JSON file received from the Visual Director with per panel the descriptions, the dialogues and the actual filenames.
+      - Total attempts, successes, and failures
+      - Cleanup results (files removed, folders cleaned)
+      - Clear recommendation for next steps (proceed to assembly or manual intervention)
   agent: orchestrator
   context:
-    - story_creation_task
-
-image_generation_task:
-  description: |
-    Generate comic panel images based on the story script.
-
-    CHARACTER CREATION PHASE:
-    1. FIRST: Identify all named characters mentioned in the story
-    2. For EACH character, call Character Consistency Tool with action="create_character"
-       to create reference images before generating any scenes
-    3. Verify character references exist before proceeding to scene generation
-
-    SCENE GENERATION PHASE:
-    4. Generate ALL panels using appropriate tools:
-       - Single character scenes: Character Consistency Tool (action="generate_scene")
-       - Multiple character scenes: Multi-Character Scene Tool
-       - Scenes with no characters: Gemini Image Generator
-    5. Use actual tool-returned paths only (never fabricate filenames)
-
-    REQUIREMENTS:
-    - Create character references BEFORE generating any scenes
-    - Generate ALL panels described in the story
-    - Use correct tool based on character count in each panel
-    - Record real image paths returned by tools
-    - Continue with remaining panels if any fail
-
-    OUTPUT: JSON object mapping panel numbers to actual filenames
-    Example: {"1": "filename.png", "2": "filename.png"}
-  expected_output: >
-    A valid JSON object with panel mappings. Format: {"panel_number": "actual_filename.png"}
-    Example: {"1": "consistent_panel_001_character_123456789.png", "2": "multi_char_panel_002_chars_123456789.png"}
-    Do NOT include any text before or after the JSON. The output must be parseable as JSON.
-  agent: visual_director
-  context:
-    - story_creation_task
+    - image_generation_task
 
 panel_validation_task:
-  description: |
+  description: >
     Validate that ALL comic panels referenced in the image generation results have
     corresponding actual image files in the filesystem before allowing comic assembly.
+    Extract the panel-to-filename mapping from the IMAGE GENERATION TASK output and
+    verify each file exists in both backend and frontend locations.
 
-    IMPORTANT: Extract the panel-to-filename mapping from the IMAGE GENERATION TASK output.
-    The image generation task SHOULD output a JSON object, but if it contains descriptive text,
-    you must extract the actual filenames mentioned for each panel.
-
-    ACCEPTABLE INPUT FORMATS:
-    1. Pure JSON: {"1": "filename.png", "2": "filename.png"}
-    2. The filenames can have the following structure starting with 'server_generated_gemini-image-tutorial', or 'consistent_panel' or 'refined_panel', or 'multi_char_panel'.    2. Descriptive text containing filenames: "Panel 1 generated: filename1.png, Panel 2 generated: filename2.png"
-    3. Mixed format with JSON embedded in text
-
-    EXTRACTION RULES:
-    - Look for JSON objects first
-    - If no JSON found, scan text for panel number + filename patterns
-    - Extract actual filenames, NOT generic ones like "panel_1.png"
-    - Each panel (1-6) must have a unique, specific filename
-
-    If you cannot find valid filenames for panels 1-6, STOP and report the extraction failure.
-
-    VALIDATION REQUIREMENTS:
-    1. Extract actual panel-to-filename mapping from image generation output
-    2. For EACH panel number and filename in the mapping:
-       - Check if the filename exists in the backend/output folder/comic_panels
-       - Check if the filename exists in the frontend/public/comic_panels
-       - Verify the filename is not empty/corrupted
-    3. Count total panels expected vs panels with valid images
-    4. Identify any missing or invalid panel images
-
-    VALIDATION CHECKS:
-    - Panel completeness: All panels (1-6) have image references
-    - File existence: All referenced images exist in filesystem, check on their filename
-    - Path validation: All paths are real (NOT fabricated like "panel2.png")
-    - Accessibility: Images are accessible for frontend display
-
-    CRITICAL: Do NOT use guessed filenames. Only validate actual filenames that were generated.
-
-    MANDATORY VALIDATION REPORT:
-    You MUST provide a detailed validation report with:
-
-    Panel Validation Results:
-    - Panel 1: [✅ VALID: path] OR [❌ MISSING: reason]
-    - Panel 2: [✅ VALID: path] OR [❌ MISSING: reason]
-    - Panel 3: [✅ VALID: path] OR [❌ MISSING: reason]
-    - Panel 4: [✅ VALID: path] OR [❌ MISSING: reason]
-    - Panel 5: [✅ VALID: path] OR [❌ MISSING: reason]
-    - Panel 6: [✅ VALID: path] OR [❌ MISSING: reason]
-
-    File System Check:
-    - Backend files found: [number]
-    - Frontend files found: [number]
-    - Missing files: [list of missing panels]
-
-    VALIDATION STATUS: [PASS/FAIL]
-
-    If FAIL: Stop the comic assembly process and report missing panels
-    If PASS: Allow comic to proceed to assembly
-
-    CRITICAL: Never approve comics with missing panel images!
+    PREFERRED VALIDATION METHOD:
+    1. First, check the panel registry for verified panel information
+    2. If registry data is available, use it to validate panels
+    3. If registry data is not available, extract from context text
+    4. Always prioritize registry data over context text extraction
   expected_output: >
     A comprehensive validation report showing:
     - Detailed panel-by-panel validation results using ACTUAL filenames from image generation
@@ -165,38 +152,67 @@ panel_validation_task:
     - Overall PASS/FAIL determination
     - Specific missing panels if any failures
     - Clear recommendation for next steps
-
-    CRITICAL: Report must be based on actual generated filenames, not guessed ones.
-    Only comics with 100% panel validation (all actual generated files present) should be marked as PASS.
+    - Include registry verification status in the report
   agent: evaluator
   context:
-    - story_creation_task
     - orchestrated_generation_task
-    - image_generation_task
+
+panel_registry_inspection_task:
+  description: >
+    Inspect the panel registry for missing or unreadable images and verify alignment with dialogue.
+    This task serves as a quality gate to ensure all panels are properly registered before layout begins.
+
+    INSPECTION PROCESS:
+    1. Read the panel registry to get all registered panels
+    2. Verify that each panel has:
+       - A filename registered
+       - backend_synced=true
+       - frontend_synced=true
+       - verified=true
+    3. Check that all registered files actually exist
+    4. Ensure panel count matches expected (6 panels)
+  expected_output: >
+    A validation report listing all panels, their status, and a pass/fail result.
+    Include specific details about any missing or unverified panels.
+    If outcome is false, inform the orchestrator to regenerate missing panels.
+    If outcome is positive, inform the comic_assembler to proceed with layout.
+  agent: panel_registry_inspector
+  async_execution: false
+  context:
+    - orchestrated_generation_task
 
 comic_assembly_task:
-  description: |
-    Use the Comic Layout Designer tool to create the final comic layout ONLY if validation passed.
+  description: >
+    Create the final comic layout using data from the centralized story metadata file.
 
-    VALIDATION CHECK FIRST:
-    1. Review the panel validation task results
-    2. If validation status is FAIL, return an error message and stop
-    3. If validation status is PASS, proceed with comic assembly
+    ASSEMBLY WORKFLOW:
+    1. Use StoryMetadataReader action="get_summary" to check story completion status
+    2. Verify all required agents have completed: story_writer, visual_director
+    3. Use StoryMetadataForLayout to get properly formatted layout data (panels, dialogue, image_paths)
+    4. Pass the layout data to ComicLayoutTool to generate the final comic
+    5. Verify the comic layout is complete and properly formatted
+    6. Use StoryMetadataWriter action="mark_completed", agent_name="comic_assembler"
+    7. Use StoryMetadataWriter action="set_status", status="completed"
 
-    COMIC ASSEMBLY (only if validation passed):
-    1. Extract panel descriptions and dialogue from the story task
-    2. Extract image paths from the image generation task  
-    3. Call the Comic Layout Designer tool with these parameters
-    4. Return ONLY the tool's markdown output - NO agent thoughts or reasoning
+    VALIDATION CHECKS:
+    - Ensure 6 panels with descriptions and dialogue
+    - Verify all 6 image files exist and are accessible
+    - Confirm story text is available for context
+    - Check that all required data is present in metadata file
 
-    CRITICAL: Do NOT proceed with assembly if the panel validation failed!
+    IMPORTANT: Always use StoryMetadataForLayout to get the properly structured data
+    before calling ComicLayoutTool. Do not try to extract data from task context.
   expected_output: >
-    If validation FAILED: Error message stating validation failure and requesting manual intervention
-    If validation PASSED: Clean comic markdown layout with panels, images, and dialogue.
-    NO agent thoughts, reasoning, or meta-commentary.
-    ONLY the comic content itself or error message.
+    If any required data is missing: Error message requesting missing components
+    If all data is available: Successfully generated comic layout with:
+    - 6 panels with descriptions and dialogue
+    - Properly embedded images
+    - Clean markdown formatting
+    - PDF version generated
+    - Confirmation that comic assembly is complete
+
+    NO agent reasoning or meta-commentary - only the final result status.
+
   agent: comic_assembler
   context:
-    - story_creation_task
     - orchestrated_generation_task
-    - panel_validation_task

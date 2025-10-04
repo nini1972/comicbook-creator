@@ -5,15 +5,17 @@ from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 import requests
 import time
-
-from .image_utils import (
+from src.utils.image_utils import (
     resolve_image_path,
     retry_file_check,
     verify_image_readable,
     copy_image_to_output,
     update_registry_for_image,
     prepare_temp_images_for_gemini
-)
+    )
+from src.utils.path_utils import get_backend_output_path, get_frontend_public_path
+from src.utils.registry_utils import update_registry_entry
+
 
 class MultiCharacterSceneToolSchema(BaseModel):
     character_names: List[str] = Field(..., description="List of minimum 2 character names to include in the scene")
@@ -37,25 +39,16 @@ class MultiCharacterSceneTool(BaseTool):
     def _get_character_reference_path(self, character_name: str) -> Optional[Path]:
         # Try several likely locations for character references and be fuzzy on filenames.
         candidates_dirs = []
-        # Current working directory based path (when running from backend)
-        candidates_dirs.append(Path.cwd() / "output" / "character_references")
+        
         # src-based and backend-based parents to cover multiple execution contexts
         p = Path(__file__).resolve()
-        for depth in (2, 3, 4):
-            try:
-                base = p.parents[depth]
-            except Exception:
-                continue
-            candidates_dirs.append(base / "output" / "character_references")
-
-        # Also check frontend public character references and backend comic_panels as fallback
-        for depth in (2, 3, 4):
-            try:
-                base = p.parents[depth]
-            except Exception:
-                continue
-            candidates_dirs.append(base / "frontend" / "public" / "character_references")
-            candidates_dirs.append(base / "output" / "comic_panels")
+        candidates_dirs = [
+        Path.cwd() / "output" / "character_references",
+        get_backend_output_path("character_references"),
+        get_frontend_public_path("character_references"),
+        get_backend_output_path("comic_panels")
+        ]
+            
 
         # Normalize and deduplicate directories
         seen = set()

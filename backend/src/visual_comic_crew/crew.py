@@ -7,7 +7,18 @@ from .tools.multi_character_scene_tool import MultiCharacterSceneTool
 from .tools.image_refinement_tool import ImageRefinementTool
 from .tools.orchestrator_tools import WorkflowControlTool, RetryManagerTool, StatusTrackerTool, CleanupTool
 from .tools.panel_validation_tool import PanelValidationTool
-import traceback
+from .tools.panel_registry_inspector_tool import PanelRegistryInspectorTool
+from .tools.visual_director_output_formatter import VisualDirectorOutputFormatter
+from .tools.story_parser_tool import StoryParserTool
+from .tools.story_metadata_tool import (
+    StoryMetadataReaderTool, 
+    StoryMetadataWriterTool, 
+    StoryMetadataLayoutTool,
+    story_metadata_reader,
+    story_metadata_writer,
+    story_metadata_layout
+)
+import traceback    
 import os
 from pathlib import Path
 
@@ -23,31 +34,85 @@ except ImportError:
 @CrewBase
 class VisualComicCrew():
     """Visual AI Comic Strip Creation Crew"""
-
+    
     def __init__(self):
+        # Call the parent class constructor which handles the configuration loading
         super().__init__()
-        print("DEBUG: VisualComicCrew __init__ called")
+        
+        # Add debug prints to check if configurations are loaded
+        print("DEBUG: VisualComicCrew.__init__ called")
+        print(f"DEBUG: agents_config loaded: {hasattr(self, 'agents_config') and self.agents_config is not None}")
+        print(f"DEBUG: tasks_config loaded: {hasattr(self, 'tasks_config') and self.tasks_config is not None}")
+        
+        # Check if configurations are loaded, if not, log an error
+        if not hasattr(self, 'agents_config') or self.agents_config is None:
+            print("ERROR: agents_config is not loaded properly!")
+        else:
+            print(f"DEBUG: agents_config keys: {list(self.agents_config.keys())}")
+            
+        if not hasattr(self, 'tasks_config') or self.tasks_config is None:
+            print("ERROR: tasks_config is not loaded properly!")
+        else:
+            print(f"DEBUG: tasks_config keys: {list(self.tasks_config.keys())}")
+
+        # Clear the registry at the start of each run
+        try:
+            from src.utils.registry_utils import clear_registry
+            clear_registry()
+            print("DEBUG: Registry cleared at start of run")
+        except Exception as e:
+            print(f"WARNING: Could not clear registry: {e}")
+
+    def _create_agent_with_fallback(self, cfg: dict, **kwargs):
+        """
+        Try to create an Agent with provided cfg. If creation fails due to
+        model not found (Anthropic/Claude), attempt a safe fallback to OpenAI GPT-4o.
+        """
+        from crewai import Agent
+        try:
+            agent = Agent(config=cfg, **kwargs)
+            return agent
+        except Exception as e:
+            print(f"WARNING: Agent creation failed with error: {e}")
+            # Try a conservative fallback for Anthropic model issues (not found or overloaded)
+            llm_val = None
+            try:
+                llm_val = cfg.get('llm') if isinstance(cfg, dict) else None
+            except Exception:
+                llm_val = None
+            
+            # Check for Anthropic/Claude related errors including overload
+            error_str = str(e).lower()
+            if llm_val and ("anthropic" in str(llm_val).lower() or "claude" in str(llm_val).lower()) or \
+               any(keyword in error_str for keyword in ["anthropic", "claude", "overloaded", "overload", "internalservererror"]):
+                print(f"INFO: Attempting fallback LLM for config llm={llm_val} -> openai/gpt-4o")
+                try_cfg = dict(cfg)
+                try_cfg['llm'] = 'openai/gpt-4o'
+                try:
+                    agent = Agent(config=try_cfg, **kwargs)
+                    print("INFO: Agent created with fallback llm=openai/gpt-4o")
+                    return agent
+                except Exception as e2:
+                    print(f"ERROR: Fallback agent creation also failed: {e2}")
+                    raise
+            # If not an anthropic/claude issue, re-raise original
+            raise
 
     @agent
     def story_writer(self) -> Agent:
         print("DEBUG: Creating story_writer agent")
-        agent = Agent(
-            config=self.agents_config['story_writer'],
-            verbose=True,
-            multimodal=True
-        )
+        agent_cfg = self.agents_config.get('story_writer', {})
+        agent = self._create_agent_with_fallback(agent_cfg, verbose=True, multimodal=True,
+                                               tools=[story_metadata_reader, story_metadata_writer])
         print(f"DEBUG: story_writer agent created with LLM: {agent.llm}")
         return agent
 
     @agent
     def visual_director(self) -> Agent:
         print("DEBUG: Creating visual_director agent")
-        agent = Agent(
-            config=self.agents_config['visual_director'],
-            verbose=True,
-            multimodal=True,
-            tools=[GeminiImageTool(), CharacterConsistencyTool(), MultiCharacterSceneTool(), ImageRefinementTool()]
-        )
+        agent_cfg = self.agents_config.get('visual_director', {})
+        agent = self._create_agent_with_fallback(agent_cfg, verbose=True, multimodal=True,
+                                               tools=[StoryParserTool(), GeminiImageTool(), CharacterConsistencyTool(), MultiCharacterSceneTool(), ImageRefinementTool(), VisualDirectorOutputFormatter(), story_metadata_reader, story_metadata_writer])
         print(f"DEBUG: visual_director agent created with LLM: {agent.llm}")
         return agent
 
@@ -55,12 +120,8 @@ class VisualComicCrew():
     def evaluator(self) -> Agent:
         print("DEBUG: Creating evaluator agent")
         try:
-            agent = Agent(
-                config=self.agents_config['evaluator'],
-                verbose=True,
-                multimodal=True,
-                tools=[PanelValidationTool()]
-            )
+            agent_cfg = self.agents_config.get('evaluator', {})
+            agent = self._create_agent_with_fallback(agent_cfg, verbose=True, multimodal=True, tools=[PanelValidationTool()])
         except Exception as e:
             print("ERROR: Exception during evaluator Agent() construction")
             print("ERROR: ", e)
@@ -73,14 +134,29 @@ class VisualComicCrew():
     @agent
     def orchestrator(self) -> Agent:
         print("DEBUG: Creating orchestrator agent")
-        agent = Agent(
-            config=self.agents_config['orchestrator'],
-            verbose=True,
-            multimodal=True,
-            tools=[WorkflowControlTool(), RetryManagerTool(), StatusTrackerTool(), CleanupTool()]
-        )
+        agent_cfg = self.agents_config.get('orchestrator', {})
+        agent = self._create_agent_with_fallback(agent_cfg, verbose=True, multimodal=True,
+                                               tools=[VisualDirectorOutputFormatter(), WorkflowControlTool(), RetryManagerTool(), StatusTrackerTool(), StoryParserTool(), CleanupTool(), story_metadata_reader, story_metadata_writer])
         print(f"DEBUG: orchestrator agent created with LLM: {agent.llm}")
         return agent
+
+
+    @agent
+    def panel_registry_inspector(self) -> Agent:
+        print("DEBUG: Creating panel_registry_inspector agent")
+        cfg = self.agents_config.get('panel_registry_inspector')
+        print(f"DEBUG: panel_registry_inspector config keys: {list(cfg.keys()) if cfg else 'MISSING'}")
+        try:
+            agent = self._create_agent_with_fallback(cfg, multimodal=True, tools=[PanelRegistryInspectorTool(), VisualDirectorOutputFormatter(), StoryParserTool(), story_metadata_reader, story_metadata_writer], verbose=True)
+        except Exception as e:
+            print("ERROR: Exception during panel_registry_inspector Agent() construction")
+            print("ERROR: ", e)
+            traceback.print_exc()
+            # Re-raise so upstream can surface the failure instead of hanging silently
+            raise
+        print(f"DEBUG: panel_registry_inspector agent created with LLM: {agent.llm}")
+        return agent
+
 
     @agent
     def comic_assembler(self) -> Agent:
@@ -88,12 +164,7 @@ class VisualComicCrew():
         cfg = self.agents_config.get('comic_assembler')
         print(f"DEBUG: comic_assembler config keys: {list(cfg.keys()) if cfg else 'MISSING'}")
         try:
-            agent = Agent(
-                config=cfg,
-                multimodal=True,
-                tools=[ComicLayoutTool()],
-                verbose=True
-            )
+            agent = self._create_agent_with_fallback(cfg, multimodal=True, tools=[ComicLayoutTool(), VisualDirectorOutputFormatter(), story_metadata_reader, story_metadata_writer, story_metadata_layout], verbose=True)
         except Exception as e:
             print("ERROR: Exception during comic_assembler Agent() construction")
             print("ERROR: ", e)
@@ -111,17 +182,25 @@ class VisualComicCrew():
         )
 
     @task
+    def image_generation_task(self) -> Task:
+        print("DEBUG: Creating image_generation_task")
+        return Task(
+            config=self.tasks_config['image_generation_task']
+        )
+
+    @task
     def orchestrated_generation_task(self) -> Task:
         print("DEBUG: Creating orchestrated_generation_task")
         return Task(
             config=self.tasks_config['orchestrated_generation_task']
         )
 
+
     @task
-    def image_generation_task(self) -> Task:
-        print("DEBUG: Creating image_generation_task")
+    def panel_registry_inspection_task(self) -> Task:
+        print("DEBUG: Creating panel_registry_inspection_task")
         return Task(
-            config=self.tasks_config['image_generation_task']
+            config=self.tasks_config['panel_registry_inspection_task']
         )
 
     @task
@@ -150,6 +229,8 @@ class VisualComicCrew():
         )
         print(f"DEBUG: comic_assembly_task created: {task}")
         return task
+    
+
 
     @crew
     def crew(self) -> Crew:
@@ -236,3 +317,18 @@ class VisualComicCrew():
         print("DEBUG: VisualComicCrew.run called - forwarding to crew().kickoff")
         return self.kickoff(inputs=inputs or {})
 
+###not to use 
+#####if __name__ == "__main__":
+    # Create an instance of the crew
+    #####comic_crew = VisualComicCrew()
+    
+    # Define inputs for the comic generation
+    #####inputs = {
+        #####'topic': 'Cybersecurity Adventure'  # You can change this to any topic you want
+    #####}
+    
+    # Execute the crew
+    #####print("DEBUG: Starting comic crew execution...")
+    ######result = comic_crew.kickoff(inputs=inputs)
+    #####print("DEBUG: Comic crew execution completed!")
+    ####print("Result:", result)

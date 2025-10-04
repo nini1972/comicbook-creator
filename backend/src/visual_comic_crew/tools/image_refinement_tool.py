@@ -5,7 +5,8 @@ from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 import requests
 import time
-from .image_utils import (
+from src.utils.registry_utils import update_registry_entry
+from src.utils.image_utils import (
     resolve_image_path,
     retry_file_check,
     verify_image_readable,

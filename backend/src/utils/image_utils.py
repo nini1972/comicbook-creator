@@ -4,10 +4,11 @@ import shutil
 import re
 from pathlib import Path
 from typing import Optional, Tuple,List
-from .registry import update_registry_entry
+from src.utils.registry_utils import update_registry_entry
+from src.utils.path_utils import get_backend_output_path, get_frontend_public_path
 
 # Base directory for Gemini image server
-GEMINI_BASE_DIR = r"C:\Users\ninic\projects\Datacamp_projects\gemini-image-tutorial"
+GEMINI_BASE_DIR = os.getenv("GEMINI_IMAGE_ROOT", r"C:\Users\ninic\projects\Datacamp_projects\gemini-image-tutorial")
 
 def prepare_temp_images_for_gemini(base_image_paths: List[str], temp_folder_name: str) -> List[str]:
     """
@@ -70,23 +71,9 @@ def verify_image_readable(path: Path) -> bool:
 
 def copy_image_to_output(source_path: Path, filename: str) -> Tuple[Path, Path]:
     """Copy image to backend and frontend directories."""
-    # Determine repository root by climbing up until a sibling `frontend` folder is found.
-    start = Path(__file__).resolve()
-    repo_root = start
-    while repo_root != repo_root.parent:
-        if (repo_root / "frontend").exists() and (repo_root / "backend").exists():
-            break
-        repo_root = repo_root.parent
-
-    # Fallback to parent-of-backend if we didn't find an obvious repo root
-    if (repo_root / "frontend").exists():
-        base = repo_root
-    else:
-        # try one level up from backend (handles the common workspace layout)
-        base = Path(__file__).parents[3].parent if len(Path(__file__).parents) >= 4 else Path(__file__).parents[3]
-
-    backend_dir = base / "backend" / "output" / "comic_panels"
-    frontend_dir = base / "frontend" / "public" / "comic_panels"
+    
+    backend_dir = get_backend_output_path("comic_panels")
+    frontend_dir = get_frontend_public_path("comic_panels")
 
     # Ensure directories exist
     backend_dir.mkdir(parents=True, exist_ok=True)
@@ -128,3 +115,25 @@ def update_registry_for_image(panel_id: str, filename: str, backend: bool, front
         verified=verified
     )
 
+def clean_temp_folder(folder_name: str, keep_recent: int = 0) -> None:
+    """Deletes files in a Gemini temp folder, keeping only the most recent if specified."""
+    gemini_root = Path(os.getenv("GEMINI_IMAGE_ROOT", "C:/Users/ninic/projects/Datacamp_projects/gemini-image-tutorial"))
+    temp_dir = gemini_root / folder_name
+    if not temp_dir.exists():
+        print(f"🧹 Temp folder not found: {temp_dir}")
+        return
+
+    files = sorted(temp_dir.glob("*"), key=lambda x: x.stat().st_mtime, reverse=True)
+    files_to_delete = files[keep_recent:] if keep_recent > 0 else files
+
+    for file_path in files_to_delete:
+        try:
+            file_path.unlink()
+            print(f"🧹 Deleted: {file_path}")
+        except Exception as e:
+            print(f"⚠️ Failed to delete {file_path}: {e}")
+
+def clean_all_gemini_temp_folders() -> None:
+    """Cleans all Gemini temp folders at once."""
+    for folder in ["temp_multi_character", "temp_refinement_images"]:
+        clean_temp_folder(folder)

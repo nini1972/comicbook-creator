@@ -4,7 +4,8 @@ from pydantic import BaseModel, Field
 import os
 import re
 from pathlib import Path
-
+from src.utils.path_utils import get_repo_root, get_backend_output_path, get_frontend_public_path
+from src.utils.registry_utils import update_registry_entry
 
 def _dbg(msg: str):
     print(f"[PanelValidationTool] {msg}")
@@ -26,11 +27,12 @@ class PanelValidationTool(BaseTool):
 
     def _get_paths(self):
         """Get the paths for image validation, robust to repo location."""
-        repo_root = Path(__file__).resolve().parents[4]
-        backend_output_path = repo_root / "backend" / "output" / "comic_panels"
-        frontend_panels_path = repo_root / "frontend" / "public" / "comic_panels"
-        return backend_output_path, frontend_panels_path
-
+        repo_root = get_repo_root()
+        backend_image_dir = get_backend_output_path("comic_panels")
+        frontend_image_dir = get_frontend_public_path("comic_panels")
+        return backend_image_dir, frontend_image_dir
+       
+     
     def _normalize_filename(self, input_string: str) -> str:
         _dbg(f"_normalize_filename input: {input_string}")
         filename = os.path.basename(str(input_string).strip())
@@ -99,6 +101,25 @@ class PanelValidationTool(BaseTool):
     def _run(self, panel_map: dict = None, context_text: str = None, expected_panel_count: int = 6) -> str:
         _dbg(f"Starting panel validation with panel_map: {panel_map}")
         print(f"PANEL_VALIDATION_TOOL_RECEIVED_MAP: {panel_map}")
+        
+        # First, try to get panel information from registry
+        try:
+            from src.utils.registry_utils import read_registry
+            registry = read_registry()
+            _dbg(f"Registry data: {registry}")
+            
+            # If we have registry data, use it to build panel_map
+            if registry:
+                panel_map = {}
+                for panel_id, panel_data in registry.items():
+                    if panel_id.startswith("panel_"):
+                        panel_num = panel_id.split("_")[1]
+                        if 'filename' in panel_data:
+                            panel_map[panel_num] = panel_data['filename']
+                _dbg(f"Panel map built from registry: {panel_map}")
+        except Exception as e:
+            _dbg(f"Error reading registry: {e}")
+        
         if not panel_map:
             _dbg("Panel map is empty, attempting to extract from context...")
             if context_text:
@@ -120,7 +141,7 @@ class PanelValidationTool(BaseTool):
         backend_files_found = 0
         frontend_files_found = 0
         try:
-            from .registry import update_registry_entry
+            from src.utils.registry_utils import update_registry_entry
         except ImportError:
             def update_registry_entry(**kwargs): pass
         for panel_num in range(1, expected_panel_count + 1):
@@ -218,3 +239,6 @@ Summary:
         _dbg(f"Validation complete: {validation_status} ({total_valid_panels}/{expected_panel_count} panels valid)")
         return report.strip()
 
+        print(f"[PanelValidation] Validated panels:")
+        for path in validated_paths:
+            print(f"✅ {path}") 

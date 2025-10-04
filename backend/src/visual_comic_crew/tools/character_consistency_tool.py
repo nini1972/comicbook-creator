@@ -9,8 +9,9 @@ import requests
 import shutil
 import time
 import hashlib
+from src.utils.registry_utils import update_registry_entry
 
-from .image_utils import (
+from src.utils.image_utils import (
     resolve_image_path,
     retry_file_check,
     verify_image_readable,
@@ -80,7 +81,7 @@ class CharacterConsistencyTool(BaseTool):
     
     def _generate_panel_cache_key(self, character_name: str, scene_description: str, panel_number: int) -> str:
         """Generate a unique cache key for panel generation"""
-        content = f"{character_name.lower()}_{panel_number}_{scene_description}"
+        content = f"{character_name.lower().replace(' ', '_')}_{panel_number}_{scene_description}"
         return hashlib.md5(content.encode()).hexdigest()
     
     def _check_panel_cache(self, character_name: str, scene_description: str, panel_number: int) -> Optional[str]:
@@ -151,7 +152,7 @@ class CharacterConsistencyTool(BaseTool):
                             cache_data[key] = value
             
             # Add new reference
-            cache_data[character_name.lower()] = reference_path
+            cache_data[character_name.lower().replace(" ", "_")] = reference_path
             
             # Write back to file
             with open(cache_file, 'w') as f:
@@ -165,7 +166,7 @@ class CharacterConsistencyTool(BaseTool):
     def _get_character_reference(self, character_name: str) -> Optional[str]:
         """Get character reference path from cache or file system"""
         cache_file = self._get_character_cache_path()
-        character_key = character_name.lower()
+        character_key = character_name.lower().replace(" ", "_")
         
         print(f"🔍 DEBUG: Looking for character reference for '{character_name}' (key: '{character_key}')")
         
@@ -291,11 +292,11 @@ class CharacterConsistencyTool(BaseTool):
             char_ref_dir.mkdir(parents=True, exist_ok=True)
             
             # Create new filename for character reference
-            reference_path = char_ref_dir / f"{character_name.lower()}_reference.png"
+            reference_path = char_ref_dir / f"{character_name.lower().replace(' ', '_')}_reference.png"
             # If you want repo-relative path, uncomment below and use instead:
             # repo_root = Path(__file__).resolve().parents[2]
             # char_ref_dir = repo_root / "output" / "character_references"
-            # reference_path = char_ref_dir / f"{character_name.lower()}_reference.png"
+            # reference_path = char_ref_dir / f"{character_name.lower().replace(' ', '_')}_reference.png"
             # Use direct copy instead of copy_image_to_output since character refs go to different folder
             shutil.copy2(source_path, reference_path)
             
@@ -347,7 +348,7 @@ class CharacterConsistencyTool(BaseTool):
         """
         print(f"🎬 DEBUG: generate_character_scene called for '{character_name}' in panel {panel_number}")
         try:
-            character_key = character_name.lower()
+            character_key = character_name.lower().replace(" ", "_")
             
             # OPTIMIZATION: Check panel cache first
             cached_panel = self._check_panel_cache(character_name, scene_description, panel_number)

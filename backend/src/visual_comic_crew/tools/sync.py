@@ -6,7 +6,9 @@ import time
 import os
 from pathlib import Path
 from typing import Dict, List, Tuple
-from .registry import update_registry_entry
+from src.utils.path_utils import get_repo_root, get_backend_output_path, get_frontend_public_path
+from src.utils.registry_utils import update_registry_entry,read_registry
+
 
 def _dbg(msg: str):
     print(f"[Sync] {msg}")
@@ -32,9 +34,9 @@ def poll_for_image_sync(panel_paths: Dict[str, str],
     _dbg(f"Starting sync polling for {len(panel_paths)} panels")
     
     # Use repo-relative paths for backend and frontend comic panels
-    repo_root = Path(__file__).resolve().parents[3]
-    backend_path = repo_root / "backend" / "output" / "comic_panels"
-    frontend_path = repo_root / "frontend" / "public" / "comic_panels"
+    
+    backend_path = get_backend_output_path("comic_panels")
+    frontend_path = get_frontend_public_path("comic_panels")
     
     sync_status = {}
     
@@ -53,6 +55,7 @@ def poll_for_image_sync(panel_paths: Dict[str, str],
             verified = backend_exists and frontend_exists
             
             sync_status[panel_id] = {
+                'filename': filename,
                 'backend': backend_exists,
                 'frontend': frontend_exists, 
                 'verified': verified
@@ -76,7 +79,7 @@ def poll_for_image_sync(panel_paths: Dict[str, str],
     
     return sync_status
 
-def update_panel_registry(sync_status: Dict[str, Dict[str, bool]]) -> None:
+def update_panel_registry(sync_status: Dict[str, Dict[str, str | bool]]) -> None:
     """
     Update the panel registry with sync status results.
     Preserves existing verified entries unless explicitly overridden.
@@ -96,11 +99,13 @@ def update_panel_registry(sync_status: Dict[str, Dict[str, bool]]) -> None:
         if existing_status.get('verified') and not status['verified']:
             _dbg(f"Preserving verified status for {panel_id} (was already verified)")
             continue
-            
+
+      
         update_registry_entry(
-            panel_id=panel_id,
+        panel_id=panel_id,
+            filename=status['filename'],
             backend=status['backend'],
-            frontend=status['frontend'], 
+            frontend=status['frontend'],
             verified=status['verified']
         )
     
