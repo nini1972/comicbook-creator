@@ -188,3 +188,5 @@ maya_'cyberland'_chen=output\character_references\maya_'cyberland'_chen_referenc
 maya_chen=output\character_references\maya_chen_reference.png
 cipher=output\character_references\cipher_reference.png
 guide_program=output\character_references\guide_program_reference.png
+vellum=output\character_references\vellum_reference.png
+memory_keeper=output\character_references\memory_keeper_reference.png
