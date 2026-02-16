@@ -3,28 +3,98 @@ panel_1:
   filename: consistent_panel_001_echo_1760020377554.png
   frontend_synced: true
   verified: true
+panel_100:
+  backend_synced: true
+  filename: speech_bubble_classic_panel_100_Hello_This_is_a_cla_1760363027453.png
+  frontend_synced: true
+  verified: true
+panel_101:
+  backend_synced: true
+  filename: speech_bubble_thought_panel_101_I_wonder_whats_happ_1760363039557.png
+  frontend_synced: true
+  verified: true
+panel_102:
+  backend_synced: true
+  filename: speech_bubble_shout_panel_102_WATCH_OUT_1760363060314.png
+  frontend_synced: true
+  verified: true
+panel_103:
+  backend_synced: true
+  filename: speech_bubble_whisper_panel_103_psst_secret_messa_1760363080793.png
+  frontend_synced: true
+  verified: true
+panel_104:
+  backend_synced: true
+  filename: speech_bubble_narration_panel_104_Meanwhile_in_anothe_1760363103880.png
+  frontend_synced: true
+  verified: true
 panel_2:
   backend_synced: true
-  filename: consistent_panel_002_echo_1760020399469.png
+  filename: speech_bubble_panel_002_consistent_panel_002_maya chen_1759601060726_1760269638945.png
+  frontend_synced: true
+  verified: true
+panel_201:
+  backend_synced: true
+  filename: speech_bubble_classic_panel_201_Im_positioned_on_th_1760363145389.png
+  frontend_synced: true
+  verified: true
+panel_202:
+  backend_synced: true
+  filename: speech_bubble_classic_panel_202_Im_in_the_center_1760363156570.png
+  frontend_synced: true
+  verified: true
+panel_203:
+  backend_synced: true
+  filename: speech_bubble_classic_panel_203_Im_positioned_autom_1760363167229.png
   frontend_synced: true
   verified: true
 panel_3:
   backend_synced: true
-  filename: multi_char_panel_003_echo_memory_keeper_1760020473438.png
+  filename: speech_bubble_panel_003_multi_char_panel_003_maya_chen_aria_1759601143027_1760269725723.png
+  frontend_synced: true
+  verified: true
+panel_300:
+  backend_synced: true
+  filename: speech_bubble_classic_panel_300_Classic_bubble_via_c_1760363180736.png
+  frontend_synced: true
+  verified: true
+panel_301:
+  backend_synced: true
+  filename: speech_bubble_thought_panel_301_Thinking_about_conve_1760363192402.png
   frontend_synced: true
   verified: true
 panel_4:
   backend_synced: true
-  filename: multi_char_panel_004_echo_memory_keeper_1760020545861.png
+  filename: speech_bubble_panel_004_consistent_panel_004_maya chen_1759601210965_1760269857994.png
+  frontend_synced: true
+  verified: true
+panel_400:
+  backend_synced: true
+  filename: speech_bubble_classic_panel_400_This_is_a_really_lon_1760363215394.png
   frontend_synced: true
   verified: true
 panel_5:
   backend_synced: true
-  filename: consistent_panel_005_echo_1760020622198.png
+  filename: speech_bubble_panel_005_multi_char_panel_005_maya_chen_marcus_kane_1759601354038_1760269868704.png
+  frontend_synced: true
+  verified: true
+panel_501:
+  backend_synced: true
+  filename: speech_bubble_classic_panel_501_Wow_This_comic_tool_1760448132227.png
+  frontend_synced: true
+  verified: true
+panel_503:
+  backend_synced: true
+  filename: speech_bubble_classic_panel_503_Im_so_angry_about_t_1760448151752.png
   frontend_synced: true
   verified: true
 panel_6:
   backend_synced: true
-  filename: multi_char_panel_006_echo_memory_keeper_1760020750596.png
+  filename: speech_bubble_panel_006_panel_006_server_generated_gemini-image-tutorial_1759411122275_1760348881066.png
+  frontend_synced: true
+  verified: true
+panel_999:
+  backend_synced: true
+  filename: speech_bubble_classic_panel_999_Hello_there_This_is_1760264542076.png
   frontend_synced: true
   verified: true

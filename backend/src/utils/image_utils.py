@@ -28,6 +28,7 @@ def prepare_temp_images_for_gemini(base_image_paths: List[str], temp_folder_name
     copied_paths = []
     for path_str in base_image_paths:
         src_path = Path(path_str).resolve()
+        print(f"🛣️  [prepare_temp_images_for_gemini] Attempting to copy from: {src_path}")
         if not src_path.exists():
             print(f"⚠️ Source image not found: {src_path}")
             continue
@@ -35,6 +36,7 @@ def prepare_temp_images_for_gemini(base_image_paths: List[str], temp_folder_name
         # Create unique filename to avoid collisions
         filename = src_path.name
         dest_path = temp_dir / filename
+        print(f"🛣️  [prepare_temp_images_for_gemini] Destination: {dest_path}")
 
         try:
             shutil.copy2(src_path, dest_path)

@@ -70,6 +70,31 @@ async def run_crew_stream(topic: str):
         yield f"data: {json.dumps({'status': 'error', 'details': str(e)})}\n\n"
 
 
+@app.get("/")
+async def root():
+    """
+    Root endpoint providing API information and available endpoints.
+    """
+    return {
+        "message": "Comic Book Creator API",
+        "version": "1.0.0",
+        "description": "An API to generate comic books using CrewAI",
+        "endpoints": {
+            "/": "This help page",
+            "/generate-comic/": "Generate a comic book (streaming endpoint)",
+            "/docs": "Interactive API documentation",
+            "/redoc": "Alternative API documentation"
+        },
+        "example": "Try: /generate-comic/?topic=my_awesome_comic"
+    }
+
+@app.get("/favicon.ico")
+async def favicon():
+    """
+    Favicon endpoint to prevent 404 errors.
+    """
+    return {"message": "No favicon configured"}
+
 @app.get("/generate-comic/")
 async def generate_comic(request: Request, topic: str = "A cat who wants to fly"):
     """
