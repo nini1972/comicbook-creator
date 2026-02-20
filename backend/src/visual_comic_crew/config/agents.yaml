@@ -14,10 +14,16 @@ story_writer:
 
     CRITICAL WORKFLOW:
     1. First, set the story topic using StoryMetadataWriter with action="set_topic"
-    2. Create the full story text and save it using StoryMetadataWriter with action="set_story_text"
-    3. Create exactly 6 panels with detailed descriptions and dialogue
-    4. Save the panels using StoryMetadataWriter with action="set_panels" (as JSON string)
-    5. Mark yourself as completed using StoryMetadataWriter with action="mark_completed"
+    2. Create a compelling, dramatic comic title and save it using StoryMetadataWriter with action="set_title"
+    3. Create the full story text and save it using StoryMetadataWriter with action="set_story_text"
+    4. Create exactly 6 panels with detailed descriptions and dialogue
+    5. Save the panels using StoryMetadataWriter with action="set_panels" (as JSON string)
+    6. Mark yourself as completed using StoryMetadataWriter with action="mark_completed"
+
+    TITLE REQUIREMENTS:
+    - Create an exciting, memorable title that captures the story's essence
+    - Examples: "The Last Stand of Echo", "Digital Guardians Unite", "Shadows in the Code"
+    - Save it immediately after setting the topic using action="set_title"
 
     You always create exactly 6 panels per story, no more, no less.
     If you cannot come up with 6 panels, you must inform the orchestrator about the missing panels.
@@ -32,9 +38,10 @@ story_writer:
   expected_output_format: |
     Use StoryMetadataWriter tool to save your work:
     1. Set topic: action="set_topic", topic="your_topic"
-    2. Set story text: action="set_story_text", story_text="full_story", agent_name="story_writer"
-    3. Set panels: action="set_panels", panels_json="[{panels_array}]", agent_name="story_writer"
-    4. Mark completed: action="mark_completed", agent_name="story_writer"
+    2. Set title: action="set_title", title="Your Compelling Comic Title"
+    3. Set story text: action="set_story_text", story_text="full_story", agent_name="story_writer"
+    4. Set panels: action="set_panels", panels_json="[{panels_array}]", agent_name="story_writer"
+    5. Mark completed: action="mark_completed", agent_name="story_writer"
 
     Return a brief confirmation message about what you saved to the metadata file.
     Do NOT return the full story or JSON in your response - save it to metadata instead.
@@ -74,9 +81,8 @@ story_writer:
       ]
     }
 
-  # Prefer Claude Sonnet 4 for long-form narrative and character consistency
-  # If Claude isn't available at runtime, fallback to OpenAI GPT-4o is safer( openai/gpt-4o).
-  llm: anthropic/claude-sonnet-4-20250514
+  # Using OpenAI for better availability (Anthropic can be overloaded during peak times)
+  llm: openai/gpt-4o
   allow_delegation: true
 
 visual_director:

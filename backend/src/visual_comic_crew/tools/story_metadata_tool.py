@@ -16,8 +16,9 @@ class StoryMetadataReadInput(BaseModel):
 
 
 class StoryMetadataWriteInput(BaseModel):
-    action: str = Field(description="Action to perform: 'set_topic', 'set_story_text', 'set_panels', 'set_image', 'mark_completed', 'set_status'")
+    action: str = Field(description="Action to perform: 'set_topic', 'set_title', 'set_story_text', 'set_panels', 'set_image', 'mark_completed', 'set_status'")
     topic: Optional[str] = Field(None, description="Story topic (when action is 'set_topic')")
+    title: Optional[str] = Field(None, description="Comic title (when action is 'set_title')")
     story_text: Optional[str] = Field(None, description="Full story text (when action is 'set_story_text')")
     panels_json: Optional[str] = Field(None, description="JSON string of panels array (when action is 'set_panels')")
     panel_number: Optional[int] = Field(None, description="Panel number (when action is 'set_image')")
@@ -128,11 +129,11 @@ class StoryMetadataWriterTool(BaseTool):
     description: str = (
         "Write story information to the centralized story metadata file. "
         "Use this to save story content, panel descriptions, image filenames, and update generation status. "
-        "Actions: 'set_topic', 'set_story_text', 'set_panels', 'set_image', 'mark_completed', 'set_status'"
+        "Actions: 'set_topic', 'set_title', 'set_story_text', 'set_panels', 'set_image', 'mark_completed', 'set_status'"
     )
     args_schema: Type[BaseModel] = StoryMetadataWriteInput
 
-    def _run(self, action: str, topic: Optional[str] = None, story_text: Optional[str] = None, 
+    def _run(self, action: str, topic: Optional[str] = None, title: Optional[str] = None, story_text: Optional[str] = None, 
             panels_json: Optional[str] = None, panel_number: Optional[int] = None,
             image_filename: Optional[str] = None, agent_name: Optional[str] = None,
             status: Optional[str] = None, details: Optional[str] = None) -> str:
@@ -148,6 +149,12 @@ class StoryMetadataWriterTool(BaseTool):
                     return "Topic is required for 'set_topic' action."
                 metadata_manager.set_topic(topic)
                 return f"Topic set to: {topic}"
+            
+            elif action == "set_title":
+                if not title:
+                    return "Title is required for 'set_title' action."
+                metadata_manager.set_title(title)
+                return f"Comic title set to: {title}"
             
             elif action == "set_story_text":
                 if not story_text:
@@ -199,7 +206,7 @@ class StoryMetadataWriterTool(BaseTool):
                 return f"Story status set to: {status}"
             
             else:
-                return f"Unknown action: {action}. Available actions: set_topic, set_story_text, set_panels, set_image, mark_completed, set_status"
+                return f"Unknown action: {action}. Available actions: set_topic, set_title, set_story_text, set_panels, set_image, mark_completed, set_status"
         
         except Exception as e:
             return f"Error writing story metadata: {str(e)}"
@@ -212,7 +219,11 @@ class StoryMetadataLayoutTool(BaseTool):
         "Returns structured data with panels, dialogue, and image paths for ComicLayoutTool. "
         "Use this when you need to prepare data for final comic assembly."
     )
-    args_schema: Type[BaseModel] = BaseModel
+    class StoryMetadataLayoutInput(BaseModel):
+        """No input fields required for this tool."""
+        pass
+
+    args_schema: Type[BaseModel] = StoryMetadataLayoutInput
 
     def _run(self) -> str:
         try:

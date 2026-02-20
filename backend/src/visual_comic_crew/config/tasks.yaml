@@ -2,17 +2,23 @@ story_creation_task:
   description: >
     Create a comic story script for {topic} and save it to the centralized story metadata file:
     1. Use StoryMetadataWriter to set the topic: action="set_topic", topic="{topic}"
-    2. Create a compelling storyline with beginning, middle, and end
-    3. Create 6 panel breakdown with detailed visual descriptions and dialogue
-    4. Save the full story text using StoryMetadataWriter: action="set_story_text"
-    5. Save the panels using StoryMetadataWriter: action="set_panels" (as JSON string)
-    6. Mark task as completed using StoryMetadataWriter: action="mark_completed", agent_name="story_writer"
+    2. Create a compelling, catchy comic title based on the story - make it exciting and memorable
+    3. Use StoryMetadataWriter to save the title: action="set_title", title="your creative title"
+    4. Create a compelling storyline with beginning, middle, and end
+    5. Create 6 panel breakdown with detailed visual descriptions and dialogue
+    6. Save the full story text using StoryMetadataWriter: action="set_story_text"
+    7. Save the panels using StoryMetadataWriter: action="set_panels" (as JSON string)
+    8. Mark task as completed using StoryMetadataWriter: action="mark_completed", agent_name="story_writer"
+
+    IMPORTANT: Create an exciting, dramatic comic title that captures the essence of the story.
+    Example titles: "The Last Stand of Echo", "Rise of the Digital Guardians", "Shadows in the Code"
 
     Do NOT generate any images yourself - that is the Visual Director's job.
     Save all data to the metadata file for other agents to access reliably.
   expected_output: >
     A confirmation message that the story has been saved to the metadata file, including:
     - Topic set successfully
+    - Comic title created and saved
     - Full story text saved (character count)
     - 6 panels saved with descriptions and dialogue
     - Agent marked as completed

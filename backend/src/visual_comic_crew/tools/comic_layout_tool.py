@@ -11,8 +11,10 @@ from src.utils.comic_exporter import ComicExporter
 from src.utils.registry_utils import update_registry_entry
 from datetime import datetime
 from src.utils.path_utils import get_backend_output_path
+from pathlib import Path
 from src.utils.registry_utils import _ensure_registry_exists, read_registry, update_registry_entry
 from src.utils.panel_registry_inspector_utils import verify_image, inspect_panel_registry
+from src.utils.story_metadata_manager import StoryMetadataManager
 
 
 # Panel registry inspection should be done after image_paths and dialogue are available in _run
@@ -171,19 +173,56 @@ class ComicLayoutTool(BaseTool):
         if not is_valid:
             return "Panel registry inspection failed. Aborting layout."
         
+        # Get the comic title from metadata
+        try:
+            # Use the current story metadata manager from the global context
+            from src.utils.story_metadata_manager import get_current_story_metadata
+            metadata_manager = get_current_story_metadata()
+            if not metadata_manager:
+                # Fallback to creating a new one if not available
+                metadata_manager = StoryMetadataManager()
+            
+            title = metadata_manager.get_title()
+            if title and title.strip():
+                comic_title = title
+            else:
+                topic = metadata_manager.get_topic()
+                comic_title = topic if topic and topic.strip() else "Comic Story"
+            
+            print(f"[ComicLayoutTool] Using comic title: {comic_title}")
+        except Exception as e:
+            print(f"[ComicLayoutTool] Could not get title from metadata: {e}")
+            comic_title = "Comic Story"
         
-        layout_lines = ["# Comic Strip Layout", ""]
+        layout_lines = [f"# {comic_title}", ""]
         for i, dial in enumerate(dialogue, start=1):
             if image_paths and i <= len(image_paths) and image_paths[i-1]:
                 # Extract just the filename for the frontend path
                 filename = os.path.basename(image_paths[i-1])
                 img_path = f"/comic_panels/{filename}"
                 layout_lines.append(f"![Panel {i}]({img_path})")
+                layout_lines.append("")
 
-            layout_lines.append(f"Dialogue: {dial}")
+            layout_lines.append(f"**{dial}**")
+            layout_lines.append("")
+            layout_lines.append("---")
             layout_lines.append("")
                                          
+        # Add ending message
+        layout_lines.append("")
+        layout_lines.append("*Next chapter will follow...*")
+        
         markdown_output = "\n".join(layout_lines)
+        
+        # Save the generated markdown to a file so it can be retrieved after the crew finishes
+        latest_comic_path = Path(get_backend_output_path("")) / "latest_comic.md"
+        try:
+            with open(latest_comic_path, 'w', encoding='utf-8') as f:
+                f.write(markdown_output)
+            print(f"[ComicLayoutTool] Saved comic layout to: {latest_comic_path}")
+        except Exception as e:
+            print(f"[ComicLayoutTool] Warning: Could not save layout to file: {e}")
+        
         return markdown_output
 
     

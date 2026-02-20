@@ -46,6 +46,7 @@ class StoryMetadataManager:
                 },
                 'story_content': {
                     'topic': '',
+                    'title': '',
                     'full_story_text': '',
                     'panels': [],
                     'image_filenames': {}
@@ -85,6 +86,17 @@ class StoryMetadataManager:
         """Get the story topic."""
         data = self._read_metadata()
         return data.get('story_content', {}).get('topic', '')
+    
+    def set_title(self, title: str):
+        """Set the comic title."""
+        data = self._read_metadata()
+        data['story_content']['title'] = title
+        self._write_metadata(data)
+    
+    def get_title(self) -> str:
+        """Get the comic title."""
+        data = self._read_metadata()
+        return data.get('story_content', {}).get('title', '')
     
     def set_full_story_text(self, story_text: str, agent_name: str = 'story_writer'):
         """Set the full story text and mark agent as completed."""

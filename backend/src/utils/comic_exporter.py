@@ -124,8 +124,13 @@ class ComicExporter:
         # Clean markdown title to avoid duplicate headers
         markdown_content = _clean_markdown_title(markdown_content)
         
-        # Convert web paths to local paths for PDF generation (GitHub Copilot recommendation)
-        markdown_content = _convert_web_paths_to_local(markdown_content)
+        # Convert web paths to relative local paths for MD viewers
+        # Pattern: /comic_panels/image.png -> ../comic_panels/image.png
+        markdown_content = re.sub(
+            r'!\[([^\]]*)\]\(/comic_panels/([^)]+)\)',
+            r'![\1](../comic_panels/\2)',
+            markdown_content
+        )
 
         safe_topic = _slugify(self.topic, maxlen=50)
         filename = f"{safe_topic}_{self.timestamp}.md"
@@ -161,7 +166,65 @@ class ComicExporter:
         local_markdown = _convert_web_paths_to_local(markdown_content)
         
         # Convert markdown to HTML
-        html_content = md_to_html(local_markdown, extras=["fenced-code-blocks", "tables"])
+        html_body = md_to_html(local_markdown, extras=["fenced-code-blocks", "tables"])
+        
+        # Add CSS styling for proper image sizing and layout
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        @page {{
+            size: A4;
+            margin: 2cm;
+        }}
+        body {{
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 100%;
+        }}
+        h1 {{
+            text-align: center;
+            color: #333;
+            margin-bottom: 2em;
+            page-break-after: avoid;
+        }}
+        img {{
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 0.5em auto;
+            page-break-inside: avoid;
+            page-break-after: avoid;
+        }}
+        p, strong {{
+            margin: 0.5em 0;
+            text-align: center;
+            page-break-before: avoid;
+        }}
+        hr {{
+            margin: 1.5em 0;
+            border: none;
+            border-top: 1px solid #ccc;
+            page-break-after: avoid;
+        }}
+        img + p, img + strong {{
+            page-break-before: avoid;
+        }}
+        em {{
+            display: block;
+            text-align: center;
+            margin-top: 2em;
+            color: #666;
+        }}
+    </style>
+</head>
+<body>
+{html_body}
+</body>
+</html>
+"""
 
         safe_topic = _slugify(self.topic, maxlen=50)
         pdf_path = self.output_dir / f"{safe_topic}_{self.timestamp}_weasyprint.pdf"

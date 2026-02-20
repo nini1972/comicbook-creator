@@ -23,8 +23,14 @@ def inspect_panel_registry(image_paths: List[str], dialogue: List[str]) -> Tuple
         valid = False
 
     for i, path_str in enumerate(image_paths):
-        path = Path(path_str)
         panel_num = i + 1
+
+        if not path_str or not isinstance(path_str, (str, Path)):
+            report.append(f"❌ Panel {panel_num}: Missing file → No path provided")
+            valid = False
+            continue
+
+        path = Path(path_str)
 
         if not path.exists():
             report.append(f"❌ Panel {panel_num}: Missing file → {path}")

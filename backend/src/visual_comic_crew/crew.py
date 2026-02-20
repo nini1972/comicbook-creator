@@ -31,6 +31,18 @@ try:
 except ImportError:
     print("DEBUG: python-dotenv not available, environment variables may not be loaded")
 
+# Configure litellm runtime fallbacks for overloaded errors
+try:
+    import litellm
+    # Set up retry behavior for overloaded errors
+    litellm.num_retries = 3
+    litellm.request_timeout = 600
+    # Add fallback behavior on specific errors
+    os.environ["LITELLM_FALLBACK_ON_ERROR"] = "true"
+    print("INFO: Configured litellm retries and fallback on errors")
+except Exception as e:
+    print(f"WARNING: Could not configure litellm settings: {e}")
+
 @CrewBase
 class VisualComicCrew():
     """Visual AI Comic Strip Creation Crew"""

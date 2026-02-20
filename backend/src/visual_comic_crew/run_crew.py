@@ -16,6 +16,7 @@ except ImportError:
 from datetime import datetime
 
 from visual_comic_crew.crew import VisualComicCrew
+from src.utils.comic_exporter import ComicExporter
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 
@@ -96,19 +97,113 @@ def run():
 
         print("DEBUG: About to call crew().kickoff()")
         result = crew_instance.crew().kickoff(inputs=inputs)
-        print(f"DEBUG: Crew execution completed. Result: {result}")
+        print(f"DEBUG: Crew execution completed. Result type: {type(result)}")
+        print(f"DEBUG: Result attributes: {dir(result)}")
 
         # Additional debug output to confirm result handling
-        if hasattr(result, 'final_output'):
-            print(f"DEBUG: final_output: {getattr(result, 'final_output')}")
+        markdown_output = None
+        
+        # Try different attributes to extract the output
+        if hasattr(result, 'raw'):
+            print(f"DEBUG: Using result.raw")
+            markdown_output = result.raw
         elif hasattr(result, 'output'):
-            print(f"DEBUG: output: {getattr(result, 'output')}")
+            print(f"DEBUG: Using result.output")
+            markdown_output = result.output
+        elif hasattr(result, 'final_output'):
+            print(f"DEBUG: Using result.final_output")
+            markdown_output = result.final_output
+        elif hasattr(result, 'pydantic'):
+            print(f"DEBUG: Using result.pydantic")
+            markdown_output = str(result.pydantic)
+        elif hasattr(result, 'json_dict'):
+            print(f"DEBUG: Using result.json_dict")
+            markdown_output = str(result.json_dict)
         elif isinstance(result, str):
-            print(f"DEBUG: result (str): {result}")
+            print(f"DEBUG: Result is already a string")
+            markdown_output = result
         elif isinstance(result, (list, tuple)):
-            print(f"DEBUG: result (list/tuple): {result}")
+            print(f"DEBUG: Result is list/tuple, using last item")
+            if result:
+                markdown_output = str(result[-1])
         else:
-            print(f"DEBUG: result (unknown type): {result}")
+            print(f"DEBUG: Converting result to string")
+            markdown_output = str(result)
+        
+        print(f"DEBUG: Extracted markdown_output length: {len(markdown_output) if markdown_output else 0}")
+        if markdown_output:
+            print(f"DEBUG: First 200 chars: {markdown_output[:200]}")
+        
+        # Clean up agent status messages that shouldn't be in the final comic
+        if markdown_output:
+            # Remove the agent's completion message if present
+            status_markers = [
+                "Successfully generated complete comic",
+                "Comic assembly marked as complete",
+                "Story status updated to",
+                "- 6 panels with",
+                "- Properly embedded images",
+                "- Clean markdown formatting",
+                "PDF version generated",
+                "Comic layout complete",
+                "proper formatting",
+                "embedded images"
+            ]
+            lines = markdown_output.split('\n')
+            cleaned_lines = []
+            skip_remaining = False
+            
+            for line in lines:
+                # Check if this line starts the agent status message
+                if any(marker in line for marker in status_markers):
+                    skip_remaining = True
+                    continue
+                if not skip_remaining:
+                    cleaned_lines.append(line)
+            
+            markdown_output = '\n'.join(cleaned_lines).strip()
+            print(f"DEBUG: After cleaning, markdown length: {len(markdown_output)}")
+        
+        # If markdown_output is empty, try reading from the saved file
+        if not markdown_output or len(markdown_output.strip()) == 0:
+            print("DEBUG: Result was empty, trying to read from latest_comic.md")
+            from src.utils.path_utils import get_backend_output_path
+            latest_comic_path = Path(get_backend_output_path("")) / "latest_comic.md"
+            if latest_comic_path.exists():
+                try:
+                    with open(latest_comic_path, 'r', encoding='utf-8') as f:
+                        markdown_output = f.read()
+                    print(f"DEBUG: Successfully read {len(markdown_output)} chars from latest_comic.md")
+                except Exception as e:
+                    print(f"DEBUG: Failed to read latest_comic.md: {e}")
+            else:
+                print(f"DEBUG: latest_comic.md not found at {latest_comic_path}")
+
+        if markdown_output and len(markdown_output.strip()) > 0:
+            print("\n" + "="*80)
+            print("EXPORTING COMIC TO FILES...")
+            print("="*80)
+            
+            # Create exporter and save files
+            exporter = ComicExporter(topic=topic)
+            
+            # Save markdown file
+            md_path = exporter.save_markdown(markdown_output)
+            print(f"✅ Markdown saved to: {md_path}")
+            
+            # Generate PDF file
+            try:
+                pdf_path = exporter.generate_pdf(markdown_output, method="weasyprint")
+                print(f"✅ PDF saved to: {pdf_path}")
+            except Exception as pdf_error:
+                print(f"⚠️ PDF generation failed: {pdf_error}")
+                print("   (Markdown file was saved successfully)")
+            
+            print("="*80)
+            print(f"COMIC EXPORT COMPLETE!")
+            print("="*80 + "\n")
+        else:
+            print("⚠️ Warning: Could not extract markdown output from result. Files not saved.")
 
     except Exception as e:
         print(f"DEBUG: Exception occurred: {type(e).__name__}: {e}")
