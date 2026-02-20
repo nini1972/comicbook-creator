@@ -12,14 +12,17 @@ dependencies = [
     "requests>=2.31.0",
     "markdown2>=2.4.0",
     "markdown-pdf>=1.10",
+    "weasyprint>=60.0",
+    "pillow>=10.0.0",
+    "pyyaml>=6.0",
 ]
 
 [project.scripts]
-visual_comic_crew = "visual_comic_crew.main:run"
-run_crew = "visual_comic_crew.main:run"
-train = "visual_comic_crew.main:train"
-replay = "visual_comic_crew.main:replay"
-test = "visual_comic_crew.main:test"
+visual_comic_crew = "visual_comic_crew.run_crew:run"
+run_crew = "visual_comic_crew.run_crew:run"
+train = "visual_comic_crew.run_crew:train"
+replay = "visual_comic_crew.run_crew:replay"
+test = "visual_comic_crew.run_crew:test"
 
 [build-system]
 requires = ["hatchling"]

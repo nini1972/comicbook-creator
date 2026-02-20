@@ -1,0 +1,25 @@
+# Main dependencies for ComicBook Creator
+# These are the core packages - sub-dependencies will be installed automatically
+
+# CrewAI Framework
+crewai[tools]>=0.177.0,<1.0.0
+
+# Google Gemini for image generation
+google-generativeai>=0.8.0
+
+# API Server
+fastapi>=0.100.0
+uvicorn>=0.23.0
+
+# Utilities
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# PDF/Document generation
+weasyprint>=60.0
+markdown2>=2.4.0
+markdown-pdf>=1.10
+pillow>=10.0.0
+
+# Data handling
+pyyaml>=6.0

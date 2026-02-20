@@ -26,9 +26,11 @@ backend/output/
 frontend/public/comic_panels/
 frontend/public/character_references/
 
-# Temp folders (if you want to ignore them)
+# Temp folders and temporary files
 **/temp_*/
+tmp_*
+**/tmp_*
 
-
-#Ignore vscode AI rules
-.github\instructions\codacy.instructions.md
+# Log files
+*.log
+**/*.log

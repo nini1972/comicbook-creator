@@ -1,1 +1,0 @@
-Error: Comic assembly cannot proceed. The Comic Panel Validation Report status is FAIL. Panel 6 is missing and must be generated before the comic layout can be created. Please review the validation report and take corrective action.
