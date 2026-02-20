@@ -1,1 +1,30 @@
-{}
+panel_1:
+  backend_synced: true
+  filename: consistent_panel_001_cypher_1771618009062.png
+  frontend_synced: true
+  verified: true
+panel_2:
+  backend_synced: true
+  filename: consistent_panel_002_cypher_1771618032678.png
+  frontend_synced: true
+  verified: true
+panel_3:
+  backend_synced: true
+  filename: consistent_panel_003_cypher_1771618055044.png
+  frontend_synced: true
+  verified: true
+panel_4:
+  backend_synced: true
+  filename: consistent_panel_004_oracle_1771618076324.png
+  frontend_synced: true
+  verified: true
+panel_5:
+  backend_synced: true
+  filename: multi_char_panel_005_cypher_oracle_1771618128264.png
+  frontend_synced: true
+  verified: true
+panel_6:
+  backend_synced: true
+  filename: multi_char_panel_006_cypher_oracle_1771618173631.png
+  frontend_synced: true
+  verified: true

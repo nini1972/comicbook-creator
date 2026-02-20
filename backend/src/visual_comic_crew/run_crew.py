@@ -147,7 +147,9 @@ def run():
                 "PDF version generated",
                 "Comic layout complete",
                 "proper formatting",
-                "embedded images"
+                "embedded images",
+                "COMIC ASSEMBLY STATUS",
+                "COMPLETED"
             ]
             lines = markdown_output.split('\n')
             cleaned_lines = []

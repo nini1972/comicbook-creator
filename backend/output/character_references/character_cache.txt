@@ -199,3 +199,4 @@ agent_beta=output\character_references\agent_beta_reference.png
 agent_gamma=output\character_references\agent_gamma_reference.png
 logic=output\character_references\logic_reference.png
 depleted_agent=output\character_references\depleted_agent_reference.png
+cypher=output\character_references\cypher_reference.png
