@@ -10,6 +10,7 @@ import shutil
 import time
 import hashlib
 from src.utils.registry_utils import update_registry_entry
+from src.utils.path_utils import get_backend_output_path
 from src.image_generator.core import generate_image
 
 from src.utils.image_utils import (
