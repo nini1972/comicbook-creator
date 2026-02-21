@@ -166,7 +166,7 @@ class StoryMetadataWriterTool(BaseTool):
             elif action == "set_story_text":
                 if not story_text:
                     return "Story text is required for 'set_story_text' action."
-                agent = agent_name or "unknown_agent"
+                agent = agent_name if agent_name else "story_writer"
                 metadata_manager.set_full_story_text(story_text, agent)
                 return f"Story text saved ({len(story_text)} characters) by {agent}"
             
@@ -183,7 +183,7 @@ class StoryMetadataWriterTool(BaseTool):
                     else:
                         return "Invalid panels format. Expected list of panels or object with 'panels' key."
                     
-                    agent = agent_name or "unknown_agent"
+                    agent = agent_name if agent_name else "story_writer"
                     metadata_manager.set_panels(panels, agent)
                     return f"Panels saved ({len(panels)} panels) by {agent}"
                 
@@ -194,7 +194,7 @@ class StoryMetadataWriterTool(BaseTool):
                 if panel_number is None or not image_filename:
                     return "Both panel_number and image_filename are required for 'set_image' action."
                 
-                agent = agent_name or "unknown_agent"
+                agent = agent_name if agent_name else "visual_director"
                 metadata_manager.set_image_filename(panel_number, image_filename, agent)
                 return f"Image filename saved for Panel {panel_number}: {image_filename}"
             
