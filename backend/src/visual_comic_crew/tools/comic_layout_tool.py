@@ -232,7 +232,21 @@ class ComicLayoutTool(BaseTool):
             print(f"[ComicLayoutTool] Saved comic layout to: {latest_comic_path}")
         except Exception as e:
             print(f"[ComicLayoutTool] Warning: Could not save layout to file: {e}")
-        
+
+        # Save timestamped export and generate PDF using lazy-imported ComicExporter
+        try:
+            from src.utils.comic_exporter import ComicExporter
+            exporter = ComicExporter(topic=comic_title)
+            md_path = exporter.save_markdown(markdown_output)
+            print(f"[ComicLayoutTool] Saved timestamped markdown: {md_path}")
+            try:
+                pdf_path = exporter.generate_pdf(markdown_output)
+                print(f"[ComicLayoutTool] Generated PDF: {pdf_path}")
+            except Exception as pdf_err:
+                print(f"[ComicLayoutTool] Warning: PDF generation failed (non-fatal): {pdf_err}")
+        except Exception as e:
+            print(f"[ComicLayoutTool] Warning: Could not export comic: {e}")
+
         return markdown_output
 
     
