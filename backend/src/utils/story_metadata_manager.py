@@ -59,10 +59,31 @@ class StoryMetadataManager:
         """Read the current metadata from file."""
         try:
             with open(self.metadata_file, 'r', encoding='utf-8') as f:
-                return yaml.safe_load(f) or {}
+                data = yaml.safe_load(f) or {}
+                # Ensure required structure exists
+                if 'story_content' not in data:
+                    data['story_content'] = {}
+                if 'story_metadata' not in data:
+                    data['story_metadata'] = {
+                        'story_id': self.story_id,
+                        'created_at': datetime.now().isoformat(),
+                        'agents_completed': []
+                    }
+                if 'generation_log' not in data:
+                    data['generation_log'] = []
+                return data
         except Exception as e:
             print(f"Error reading metadata file: {e}")
-            return {}
+            # Return valid structure even on error
+            return {
+                'story_content': {},
+                'story_metadata': {
+                    'story_id': self.story_id,
+                    'created_at': datetime.now().isoformat(),
+                    'agents_completed': []
+                },
+                'generation_log': []
+            }
     
     def _write_metadata(self, data: Dict[str, Any]):
         """Write metadata to file."""
@@ -79,6 +100,8 @@ class StoryMetadataManager:
     def set_topic(self, topic: str):
         """Set the story topic."""
         data = self._read_metadata()
+        if 'story_content' not in data:
+            data['story_content'] = {}
         data['story_content']['topic'] = topic
         self._write_metadata(data)
     
@@ -90,6 +113,8 @@ class StoryMetadataManager:
     def set_title(self, title: str):
         """Set the comic title."""
         data = self._read_metadata()
+        if 'story_content' not in data:
+            data['story_content'] = {}
         data['story_content']['title'] = title
         self._write_metadata(data)
     
@@ -101,6 +126,8 @@ class StoryMetadataManager:
     def set_chapter(self, chapter: str):
         """Set the comic chapter."""
         data = self._read_metadata()
+        if 'story_content' not in data:
+            data['story_content'] = {}
         data['story_content']['chapter'] = chapter
         self._write_metadata(data)
         
@@ -112,9 +139,13 @@ class StoryMetadataManager:
     def set_full_story_text(self, story_text: str, agent_name: str = 'story_writer'):
         """Set the full story text and mark agent as completed."""
         data = self._read_metadata()
+        if 'story_content' not in data:
+            data['story_content'] = {}
         data['story_content']['full_story_text'] = story_text
         
         # Log the update
+        if 'generation_log' not in data:
+            data['generation_log'] = []
         log_entry = {
             'timestamp': datetime.now().isoformat(),
             'agent': agent_name,
@@ -124,6 +155,10 @@ class StoryMetadataManager:
         data['generation_log'].append(log_entry)
         
         # Mark agent as completed if not already
+        if 'story_metadata' not in data:
+            data['story_metadata'] = {'agents_completed': []}
+        if 'agents_completed' not in data['story_metadata']:
+            data['story_metadata']['agents_completed'] = []
         if agent_name not in data['story_metadata']['agents_completed']:
             data['story_metadata']['agents_completed'].append(agent_name)
         
@@ -143,9 +178,13 @@ class StoryMetadataManager:
             agent_name: Name of the agent setting the panels
         """
         data = self._read_metadata()
+        if 'story_content' not in data:
+            data['story_content'] = {}
         data['story_content']['panels'] = panels
         
         # Log the update
+        if 'generation_log' not in data:
+            data['generation_log'] = []
         log_entry = {
             'timestamp': datetime.now().isoformat(),
             'agent': agent_name,
@@ -155,6 +194,10 @@ class StoryMetadataManager:
         data['generation_log'].append(log_entry)
         
         # Mark agent as completed if not already
+        if 'story_metadata' not in data:
+            data['story_metadata'] = {'agents_completed': []}
+        if 'agents_completed' not in data['story_metadata']:
+            data['story_metadata']['agents_completed'] = []
         if agent_name not in data['story_metadata']['agents_completed']:
             data['story_metadata']['agents_completed'].append(agent_name)
         
@@ -176,12 +219,16 @@ class StoryMetadataManager:
     def set_image_filename(self, panel_number: int, filename: str, agent_name: str = 'visual_director'):
         """Set the image filename for a specific panel."""
         data = self._read_metadata()
+        if 'story_content' not in data:
+            data['story_content'] = {}
         if 'image_filenames' not in data['story_content']:
             data['story_content']['image_filenames'] = {}
         
         data['story_content']['image_filenames'][str(panel_number)] = filename
         
         # Log the update
+        if 'generation_log' not in data:
+            data['generation_log'] = []
         log_entry = {
             'timestamp': datetime.now().isoformat(),
             'agent': agent_name,
@@ -206,10 +253,16 @@ class StoryMetadataManager:
         """Mark an agent as completed with optional details."""
         data = self._read_metadata()
         
+        if 'story_metadata' not in data:
+            data['story_metadata'] = {'agents_completed': []}
+        if 'agents_completed' not in data['story_metadata']:
+            data['story_metadata']['agents_completed'] = []
         if agent_name not in data['story_metadata']['agents_completed']:
             data['story_metadata']['agents_completed'].append(agent_name)
         
         # Log the completion
+        if 'generation_log' not in data:
+            data['generation_log'] = []
         log_entry = {
             'timestamp': datetime.now().isoformat(),
             'agent': agent_name,

@@ -236,8 +236,16 @@ class CharacterConsistencyTool(BaseTool):
                 output_dir = get_backend_output_path("comic_panels")
                 os.makedirs(output_dir, exist_ok=True)
                 destination_path = os.path.join(output_dir, filename)
-                generated_image.save(destination_path)
-                print(f"✅ Image generated successfully: {destination_path}")
+                try:
+                    generated_image.save(destination_path)
+                    if os.path.exists(destination_path):
+                        file_size = os.path.getsize(destination_path)
+                        print(f"✅ Image generated successfully: {destination_path} ({file_size} bytes)")
+                    else:
+                        print(f"❌ ERROR: Save appeared to succeed but file not found: {destination_path}")
+                except Exception as save_error:
+                    print(f"❌ ERROR saving image: {save_error}")
+                    raise  # Re-raise to prevent silent failure
                 return destination_path
             else:
                 error_msg = "Image generation failed. The model may have returned an empty response due to safety filters."

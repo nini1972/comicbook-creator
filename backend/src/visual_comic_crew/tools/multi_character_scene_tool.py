@@ -156,19 +156,35 @@ class MultiCharacterSceneTool(BaseTool):
             output_dir = get_backend_output_path("comic_panels")
             os.makedirs(output_dir, exist_ok=True)
             
-            # Save the image directly to our output directory
+            # Save the image directly to our output directory with explicit error handling
             destination_path = os.path.join(output_dir, panel_filename)
-            generated_image.save(destination_path)
-            
-            print(f"✅ Saved to backend: {destination_path}")
+            try:
+                generated_image.save(destination_path)
+                if os.path.exists(destination_path):
+                    file_size = os.path.getsize(destination_path)
+                    print(f"✅ Saved to backend: {destination_path} ({file_size} bytes)")
+                else:
+                    print(f"❌ ERROR: Save appeared to succeed but file not found: {destination_path}")
+            except Exception as save_error:
+                print(f"❌ ERROR saving to backend: {save_error}")
+                raise  # Re-raise to prevent silent failure
             
             # Also copy to frontend
             import shutil
             frontend_dir = get_frontend_public_path("comic_panels")
             os.makedirs(frontend_dir, exist_ok=True)
             frontend_path = os.path.join(frontend_dir, panel_filename)
-            shutil.copy2(destination_path, frontend_path)
-            print(f"✅ Copied to frontend: {frontend_path}")
+            try:
+                if not os.path.exists(destination_path):
+                    raise FileNotFoundError(f"Backend file missing before copy: {destination_path}")
+                shutil.copy2(destination_path, frontend_path)
+                if os.path.exists(frontend_path):
+                    print(f"✅ Copied to frontend: {frontend_path}")
+                else:
+                    print(f"❌ ERROR: Copy appeared to succeed but frontend file not found: {frontend_path}")
+            except Exception as copy_error:
+                print(f"❌ ERROR copying to frontend: {copy_error}")
+                # Don't raise - frontend copy is non-critical
 
             panel_id = f"panel_{panel_number}"
             try:
