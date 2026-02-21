@@ -16,9 +16,10 @@ class StoryMetadataReadInput(BaseModel):
 
 
 class StoryMetadataWriteInput(BaseModel):
-    action: str = Field(description="Action to perform: 'set_topic', 'set_title', 'set_story_text', 'set_panels', 'set_image', 'mark_completed', 'set_status'")
+    action: str = Field(description="Action to perform: 'set_topic', 'set_title', 'set_chapter', 'set_story_text', 'set_panels', 'set_image', 'mark_completed', 'set_status'")
     topic: Optional[str] = Field(None, description="Story topic (when action is 'set_topic')")
     title: Optional[str] = Field(None, description="Comic title (when action is 'set_title')")
+    chapter: Optional[str] = Field(None, description="Comic chapter number or title (when action is 'set_chapter')")
     story_text: Optional[str] = Field(None, description="Full story text (when action is 'set_story_text')")
     panels_json: Optional[str] = Field(None, description="JSON string of panels array (when action is 'set_panels')")
     panel_number: Optional[int] = Field(None, description="Panel number (when action is 'set_image')")
@@ -129,11 +130,11 @@ class StoryMetadataWriterTool(BaseTool):
     description: str = (
         "Write story information to the centralized story metadata file. "
         "Use this to save story content, panel descriptions, image filenames, and update generation status. "
-        "Actions: 'set_topic', 'set_title', 'set_story_text', 'set_panels', 'set_image', 'mark_completed', 'set_status'"
+        "Actions: 'set_topic', 'set_title', 'set_chapter', 'set_story_text', 'set_panels', 'set_image', 'mark_completed', 'set_status'"
     )
     args_schema: Type[BaseModel] = StoryMetadataWriteInput
 
-    def _run(self, action: str, topic: Optional[str] = None, title: Optional[str] = None, story_text: Optional[str] = None, 
+    def _run(self, action: str, topic: Optional[str] = None, title: Optional[str] = None, chapter: Optional[str] = None, story_text: Optional[str] = None, 
             panels_json: Optional[str] = None, panel_number: Optional[int] = None,
             image_filename: Optional[str] = None, agent_name: Optional[str] = None,
             status: Optional[str] = None, details: Optional[str] = None) -> str:
@@ -155,6 +156,12 @@ class StoryMetadataWriterTool(BaseTool):
                     return "Title is required for 'set_title' action."
                 metadata_manager.set_title(title)
                 return f"Comic title set to: {title}"
+                
+            elif action == "set_chapter":
+                if not chapter:
+                    return "Chapter is required for 'set_chapter' action."
+                metadata_manager.set_chapter(chapter)
+                return f"Comic chapter set to: {chapter}"
             
             elif action == "set_story_text":
                 if not story_text:

@@ -18,6 +18,12 @@ from .tools.story_metadata_tool import (
     story_metadata_writer,
     story_metadata_layout
 )
+from .tools.lore_database_tool import (
+    LoreDatabaseReaderTool,
+    LoreDatabaseWriterTool,
+    lore_database_reader,
+    lore_database_writer
+)
 import traceback    
 import os
 from pathlib import Path
@@ -115,7 +121,7 @@ class VisualComicCrew():
         print("DEBUG: Creating story_writer agent")
         agent_cfg = self.agents_config.get('story_writer', {})
         agent = self._create_agent_with_fallback(agent_cfg, verbose=True, multimodal=True,
-                                               tools=[story_metadata_reader, story_metadata_writer])
+                                               tools=[story_metadata_reader, story_metadata_writer, lore_database_reader, lore_database_writer])
         print(f"DEBUG: story_writer agent created with LLM: {agent.llm}")
         return agent
 

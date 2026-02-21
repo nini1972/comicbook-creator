@@ -174,42 +174,65 @@ class ComicExporter:
 <html>
 <head>
     <meta charset="utf-8">
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
     <style>
         @page {{
             size: A4;
             margin: 2cm;
         }}
         body {{
-            font-family: Arial, sans-serif;
+            font-family: 'Comic Neue', cursive, sans-serif;
             line-height: 1.6;
             max-width: 100%;
+            background-color: #f9f9f9;
         }}
         h1 {{
             text-align: center;
-            color: #333;
-            margin-bottom: 2em;
-            page-break-after: avoid;
+            color: #d32f2f;
+            font-family: 'Bangers', cursive;
+            font-size: 4em;
+            margin-bottom: 1em;
+            margin-top: 2em;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 2px 2px 0px #fff, 4px 4px 0px #000;
+            page-break-after: always;
         }}
         img {{
             max-width: 100%;
             height: auto;
             display: block;
             margin: 0.5em auto;
+            border: 4px solid #000;
+            border-radius: 4px;
+            box-shadow: 5px 5px 0px rgba(0,0,0,0.2);
             page-break-inside: avoid;
             page-break-after: avoid;
         }}
         p, strong {{
             margin: 0.5em 0;
             text-align: center;
+            font-size: 1.2em;
+            background-color: #fff;
+            border: 2px solid #000;
+            border-radius: 10px;
+            padding: 10px;
+            box-shadow: 3px 3px 0px rgba(0,0,0,0.1);
             page-break-before: avoid;
+            display: inline-block;
+            max-width: 80%;
+        }}
+        .dialogue-container {{
+            text-align: center;
+            margin-bottom: 2em;
         }}
         hr {{
-            margin: 1.5em 0;
+            margin: 2em 0;
             border: none;
-            border-top: 1px solid #ccc;
+            border-top: 3px dashed #ccc;
             page-break-after: avoid;
         }}
-        img + p, img + strong {{
+        img + p, img + strong, img + .dialogue-container {{
             page-break-before: avoid;
         }}
         em {{
@@ -217,11 +240,24 @@ class ComicExporter:
             text-align: center;
             margin-top: 2em;
             color: #666;
+            font-style: italic;
         }}
     </style>
 </head>
 <body>
 {html_body}
+<script>
+    // Wrap paragraphs that follow images in a container for better styling
+    document.querySelectorAll('img').forEach(img => {{
+        let next = img.nextElementSibling;
+        if (next && (next.tagName === 'P' || next.tagName === 'STRONG')) {{
+            let wrapper = document.createElement('div');
+            wrapper.className = 'dialogue-container';
+            next.parentNode.insertBefore(wrapper, next);
+            wrapper.appendChild(next);
+        }}
+    }});
+</script>
 </body>
 </html>
 """

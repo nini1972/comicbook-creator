@@ -195,6 +195,16 @@ class ComicLayoutTool(BaseTool):
             comic_title = "Comic Story"
         
         layout_lines = [f"# {comic_title}", ""]
+        
+        # Add chapter title if available
+        try:
+            chapter = metadata_manager.get_chapter()
+            if chapter:
+                layout_lines.append(f"## Chapter {chapter}")
+                layout_lines.append("")
+        except AttributeError:
+            pass # get_chapter might not exist yet
+            
         for i, dial in enumerate(dialogue, start=1):
             if image_paths and i <= len(image_paths) and image_paths[i-1]:
                 # Extract just the filename for the frontend path

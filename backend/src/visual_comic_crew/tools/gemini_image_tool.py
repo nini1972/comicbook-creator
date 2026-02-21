@@ -1,5 +1,4 @@
 from crewai.tools import BaseTool
-import requests
 from typing import Type, Optional, List
 from pydantic import BaseModel, Field
 import os
@@ -7,17 +6,15 @@ import time
 import shutil
 import re
 from pathlib import Path
+from PIL import Image
 from src.utils.path_utils import get_backend_output_path,get_frontend_public_path
 from src.utils.registry_utils import update_registry_entry
 from src.utils.image_utils import (
-    resolve_image_path,
-    retry_file_check,
-    verify_image_readable,
-    copy_image_to_output,
     extract_panel_id,
-    update_registry_for_image
+    update_registry_for_image,
+    copy_image_to_output
 )
-
+from src.image_generator.core import generate_image
 
 # Simple helper for debug prints (could be replaced with logging module later)
 def _dbg(msg: str):
@@ -36,8 +33,6 @@ class GeminiImageTool(BaseTool):
         "Does not maintain character consistency - use Character tools for character-specific panels."
     )
     args_schema: Type[BaseModel] = GeminiImageToolSchema
-    # Allow override via environment variable GEMINI_IMAGE_SERVER_URL
-    server_url: str = os.getenv("GEMINI_IMAGE_SERVER_URL", "http://127.0.0.1:8000/generate-image/")
 
     def _run(self, prompt: str, base_image_paths: Optional[List[str]] = None) -> str:
         """Generate an image and return the saved path or an error string."""
@@ -80,105 +75,71 @@ class GeminiImageTool(BaseTool):
             return "Error: Prompt cannot be empty."
             
         start = time.time()
-        payload = {"prompt": prompt}
+        
+        pil_images = []
         if base_image_paths:
-            # Convert any relative paths to absolute paths so Gemini server can find the files
-            abs_paths = [str(Path(p).resolve()) for p in base_image_paths]
-            payload["base_image_paths"] = abs_paths
+            for path_str in base_image_paths:
+                path = Path(path_str).resolve()
+                if not path.exists():
+                    return f"Error: Base image not found: {path_str}"
+                try:
+                    pil_images.append(Image.open(path))
+                except Exception as e:
+                    return f"Error: Failed to open base image {path_str}: {e}"
 
-        _dbg(f"Request -> {self.server_url}")
         _dbg(f"Prompt length: {len(prompt)} characters")
         try:
-            response = requests.post(self.server_url, json=payload, timeout=45)
-        except requests.Timeout:
-            return "Error: Image server timeout after 45s."
-        except requests.ConnectionError as ce:
-            return f"Error: Cannot connect to image server ({ce}). Ensure server.py running on port 8000." 
-        except Exception as e:
-            return f"Error: Unexpected exception before response ({e})."
-
-        try:
-            response.raise_for_status()
-            response_data = response.json()
-        except Exception as e:
-            return f"Error: Bad response from image server ({e}) status={response.status_code} text={response.text[:200]}"
-
-        if response_data.get("status") == "success" and response_data.get("image_path"):
-            source_image_path = response_data["image_path"]
-            elapsed = round(time.time() - start, 2)
-            _dbg(f"Success in {elapsed}s -> {source_image_path}")
+            generated_image = generate_image(
+                prompt=prompt,
+                base_images=pil_images if pil_images else None
+            )
             
-            # Handle relative paths from Gemini Image Tutorial
-            # The server returns paths like "output\filename.png" 
-            # We need to make this an absolute path to the Gemini Image Tutorial directory
-            source_path = resolve_image_path(source_image_path)
-         
-            _dbg(f"Resolved source path: {source_path}")
+            if not generated_image:
+                return "Error: Image generation failed. The model may have returned an empty response due to safety filters."
+                
+            elapsed = round(time.time() - start, 2)
+            _dbg(f"Success in {elapsed}s")
             
             # Extract panel number from the prompt (e.g., "Panel 1:", "Panel 2:", etc.)
             panel_id = extract_panel_id(prompt)
             
-            # Extract filename from the source path
-            source_filename = os.path.basename(source_image_path)
+            # Use timestamp-based naming to guarantee uniqueness
+            timestamp = int(time.time() * 1000)
             
             # If panel number is mentioned in prompt, modify filename to include it
             if panel_id:
                 # Extract panel number from panel_id (e.g., "panel_1" -> "001")
                 panel_number = panel_id.split('_')[1]
-                # Create new filename with panel number
-                name_part, ext = os.path.splitext(source_filename)
-                panel_filename = f"panel_{panel_number:0>3}_{name_part}{ext}"
+                panel_filename = f"panel_{panel_number:0>3}_{timestamp}.png"
             else:
-                panel_filename = source_filename
+                panel_filename = f"generated_{timestamp}.png"
+                
             # Define destination directory (comic_panels folder)
-            # Use absolute path to avoid working directory issues
             output_dir = get_backend_output_path("comic_panels")
-            # Ensure the output directory exists
             os.makedirs(output_dir, exist_ok=True)
-            _dbg(f"Destination directory: {output_dir}")
             
-            # Copy the image to our output directory
+            # Save the image directly to our output directory
             destination_path = os.path.join(output_dir, panel_filename)
+            generated_image.save(destination_path)
             
-            try:
-                # Wait a moment for file system to settle (sometimes needed after generation)
-                time.sleep(0.5)
+            _dbg(f"Saved to backend: {destination_path}")
+            
+            # Also copy to frontend
+            frontend_dir = get_frontend_public_path("comic_panels")
+            os.makedirs(frontend_dir, exist_ok=True)
+            frontend_path = os.path.join(frontend_dir, panel_filename)
+            shutil.copy2(destination_path, frontend_path)
+            _dbg(f"Copied to frontend: {frontend_path}")
+
+            if panel_id:
+                update_registry_for_image(panel_id, panel_filename, True, True)
+                _dbg(f"Registry updated for {panel_id} with filename {panel_filename}")
+                return f"Image generated successfully. Filename: {panel_filename}"
+            else:
+                _dbg("Warning: Could not extract panel ID from prompt, registry not updated.")
+                return f"Image registered unsuccessfully, panel_id is missing. Filename: {panel_filename}"
                 
-                # Check if source file exists with retries
-                if not retry_file_check(source_path):
-                    return f"Image generated but source file not found: {source_path}"
-                               
-                # Verify file is readable
-                if not verify_image_readable(source_path):
-                    return f"Image generated but source file not readable: {source_path}"
-
-                # Copy the file from Gemini Image Tutorial to our comic project
-                backend_path, frontend_path = copy_image_to_output(source_path, panel_filename)
-
-                _dbg(f"Copied to backend: {backend_path}")
-                _dbg(f"Copied to frontend: {frontend_path}") 
-
-                if panel_id:
-                    update_registry_for_image(panel_id, panel_filename, True, True)
-
-                    _dbg(f"Registry updated for {panel_id} with filename {panel_filename}")
-                   # Return the filename, which will be used by other tools
-                    return f"Image generated successfully. Filename: {panel_filename}"
-                else:
-                    _dbg("Warning: Could not extract panel ID from prompt, registry not updated.")
-                     # Return the filename, which will be used by other tools
-                    return f"Image registered unsuccessfully, panel_id is missing. Filename: {panel_filename}"
-                
-            except Exception as copy_error: 
-                _dbg(f"Failed to copy image: {copy_error}")
-                return f"Image generated but copy failed: {copy_error}. Original at: {source_image_path}"
-
-        error_message = (
-            response_data.get("message")
-            or response_data.get("detail")
-            or response_data.get("error")
-            or "Unknown error from image generation server."
-        )
-        _dbg(f"Failure: {error_message}")
-        return f"Error: {error_message}"
+        except Exception as e:
+            _dbg(f"Failure: {e}")
+            return f"Error: Unexpected exception during generation ({e})."
 

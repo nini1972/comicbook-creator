@@ -15,6 +15,7 @@ from src.utils.image_utils import (
     )
 from src.utils.path_utils import get_backend_output_path, get_frontend_public_path
 from src.utils.registry_utils import update_registry_entry
+from src.image_generator.core import generate_image
 
 
 class MultiCharacterSceneToolSchema(BaseModel):
@@ -127,43 +128,47 @@ class MultiCharacterSceneTool(BaseTool):
 
             print(f"✅ DEBUG: Prepared {len(gemini_paths)} temp paths for Gemini: {gemini_paths}")
 
-            payload = {
-                "prompt": full_prompt,
-                "base_image_paths": gemini_paths
-            }
+            pil_images = []
+            for path_str in gemini_paths:
+                path = Path(path_str).resolve()
+                if not path.exists():
+                    return f"❌ Error: Base image not found: {path_str}"
+                try:
+                    from PIL import Image
+                    pil_images.append(Image.open(path))
+                except Exception as e:
+                    return f"❌ Error: Failed to open base image {path_str}: {e}"
 
             print(f"🔄 Composing multi-character scene for panel {panel_number} with characters: {character_names}")
-            print(f"🔄 DEBUG: Sending payload to {self.server_url}")
             print(f"🔄 DEBUG: Payload prompt: {full_prompt}")
             print(f"🔄 DEBUG: Payload base_image_paths: {gemini_paths}")
-            response = requests.post(self.server_url, json=payload, timeout=120)
+            
+            generated_image = generate_image(full_prompt, pil_images)
 
-            print(f"🔄 DEBUG: Response status: {response.status_code}")
-            print(f"🔄 DEBUG: Response text: {response.text[:500]}")  # First 500 chars
-
-            if response.status_code != 200:
-                return f"❌ Failed to compose multi-character scene: HTTP {response.status_code} - {response.text}"
-
-            result = response.json()
-            print(f"🔄 DEBUG: Parsed JSON result: {result}")
-
-            if "error" in result:
-                return f"❌ Gemini compose error: {result['error']}"
-
-            if "image_path" not in result:
-                return "❌ No image path returned from Gemini compose operation"
-
-            source_path = resolve_image_path(result["image_path"])
-            if not retry_file_check(source_path):
-                return f"❌ Generated image not found after retries: {source_path}"
-            if not verify_image_readable(source_path):
-                return f"❌ Generated image unreadable: {source_path}"
+            if not generated_image:
+                return "❌ Error: Image generation failed. The model may have returned an empty response due to safety filters."
 
             timestamp = int(time.time() * 1000)
             char_names_joined = "_".join(char_name.lower().replace(" ", "_") for char_name in character_names[:2])
             panel_filename = f"multi_char_panel_{panel_number:03d}_{char_names_joined}_{timestamp}.png"
 
-            backend_path, frontend_path = copy_image_to_output(source_path, panel_filename)
+            # Define destination directory (comic_panels folder)
+            output_dir = get_backend_output_path("comic_panels")
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # Save the image directly to our output directory
+            destination_path = os.path.join(output_dir, panel_filename)
+            generated_image.save(destination_path)
+            
+            print(f"✅ Saved to backend: {destination_path}")
+            
+            # Also copy to frontend
+            import shutil
+            frontend_dir = get_frontend_public_path("comic_panels")
+            os.makedirs(frontend_dir, exist_ok=True)
+            frontend_path = os.path.join(frontend_dir, panel_filename)
+            shutil.copy2(destination_path, frontend_path)
+            print(f"✅ Copied to frontend: {frontend_path}")
 
             panel_id = f"panel_{panel_number}"
             try:

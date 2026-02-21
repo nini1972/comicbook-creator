@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 import requests
 import time
 from src.utils.registry_utils import update_registry_entry
+from src.image_generator.core import generate_image
+from src.image_generator.core import generate_image
 from src.utils.image_utils import (
     resolve_image_path,
     retry_file_check,
@@ -57,41 +59,50 @@ class ImageRefinementTool(BaseTool):
             if not gemini_paths:
                     return f"❌ Failed to prepare base image for Gemini access: {base_image_path}"
 
-            payload = {
-                "prompt": full_prompt,
-                "base_image_paths": gemini_paths
-                }
+            pil_images = []
+            for path_str in gemini_paths:
+                path = Path(path_str).resolve()
+                if not path.exists():
+                    return f"❌ Error: Base image not found: {path_str}"
+                try:
+                    from PIL import Image
+                    pil_images.append(Image.open(path))
+                except Exception as e:
+                    return f"❌ Error: Failed to open base image {path_str}: {e}"
 
             print(f"🔄 Refining image for panel {panel_number}: {base_image_path}")
-            response = requests.post(self.server_url, json=payload, timeout=120)
+            
+            generated_image = generate_image(full_prompt, pil_images)
 
-            if response.status_code != 200:
-                return f"❌ Failed to refine image: HTTP {response.status_code} - {response.text}"
-
-            result = response.json()
-            if result.get("status") != "success" or "image_path" not in result:
-                error_message = (
-                    result.get("message")
-                    or result.get("detail")
-                    or result.get("error")
-                    or "Unknown error from image refinement server."
-                )
-                return f"❌ Refinement failed: {error_message}"
-
-            source_path = resolve_image_path(result["image_path"])
-            if not retry_file_check(source_path):
-                return f"❌ Refined image not found after retries: {source_path}"
-
-            if not verify_image_readable(source_path):
-                return f"❌ Refined image unreadable: {source_path}"
+            if not generated_image:
+                return "❌ Error: Image refinement failed. The model may have returned an empty response due to safety filters."
 
             timestamp = int(time.time() * 1000)
             base_name = base_path.stem
             panel_filename = f"refined_panel_{panel_number:03d}_{base_name}_{timestamp}.png"
 
+            from src.utils.path_utils import get_backend_output_path, get_frontend_public_path
+            
+            # Define destination directory (comic_panels folder)
+            output_dir = get_backend_output_path("comic_panels")
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # Save the image directly to our output directory
+            destination_path = os.path.join(output_dir, panel_filename)
+            generated_image.save(destination_path)
+            
+            print(f"✅ Saved to backend: {destination_path}")
+            
+            # Also copy to frontend
+            import shutil
+            frontend_dir = get_frontend_public_path("comic_panels")
+            os.makedirs(frontend_dir, exist_ok=True)
+            frontend_path = os.path.join(frontend_dir, panel_filename)
+            shutil.copy2(destination_path, frontend_path)
+            print(f"✅ Copied to frontend: {frontend_path}")
+
             panel_id = f"panel_{panel_number}"
             try:
-                backend_path, frontend_path = copy_image_to_output(source_path, panel_filename)
                 update_registry_for_image(panel_id, panel_filename, True, True)
                 return f"✅ Image refined: {panel_filename} (copied to backend and frontend)"
             except Exception as frontend_error:

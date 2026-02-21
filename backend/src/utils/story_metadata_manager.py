@@ -97,6 +97,17 @@ class StoryMetadataManager:
         """Get the comic title."""
         data = self._read_metadata()
         return data.get('story_content', {}).get('title', '')
+        
+    def set_chapter(self, chapter: str):
+        """Set the comic chapter."""
+        data = self._read_metadata()
+        data['story_content']['chapter'] = chapter
+        self._write_metadata(data)
+        
+    def get_chapter(self) -> str:
+        """Get the comic chapter."""
+        data = self._read_metadata()
+        return data.get('story_content', {}).get('chapter', '')
     
     def set_full_story_text(self, story_text: str, agent_name: str = 'story_writer'):
         """Set the full story text and mark agent as completed."""

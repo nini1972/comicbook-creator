@@ -10,6 +10,7 @@ import shutil
 import time
 import hashlib
 from src.utils.registry_utils import update_registry_entry
+from src.image_generator.core import generate_image
 
 from src.utils.image_utils import (
     resolve_image_path,
@@ -200,7 +201,7 @@ class CharacterConsistencyTool(BaseTool):
 
     def _generate_image_via_server(self, prompt: str, base_image_paths: Optional[list] = None, single_call: bool = False) -> str:
         """
-        Generate image using the existing Gemini server infrastructure.
+        Generate image using the local Gemini SDK.
         Enhanced with Option 6 approach for character consistency.
         
         Args:
@@ -209,10 +210,14 @@ class CharacterConsistencyTool(BaseTool):
             single_call: If True, only make one call to avoid duplicate generation
         """
         try:
-            payload = {"prompt": prompt}
+            pil_images = []
             if base_image_paths:
-                payload["base_image_paths"] = base_image_paths
                 print(f"🎭 Using character reference(s): {base_image_paths}")
+                for path_str in base_image_paths:
+                    path = Path(path_str).resolve()
+                    if path.exists():
+                        from PIL import Image
+                        pil_images.append(Image.open(path))
 
             print(f"🎨 Generating image with prompt: {prompt[:100]}...")
 
@@ -220,23 +225,23 @@ class CharacterConsistencyTool(BaseTool):
             if single_call:
                 print(f"⚡ Single-call mode: optimized generation")
 
-            response = requests.post(self.server_url, json=payload, timeout=120)
+            # Call the local generate_image function
+            generated_image = generate_image(prompt, pil_images if pil_images else None)
 
-            if response.status_code == 200:
-                result = response.json()
-                # Handle both response formats for compatibility
-                if result.get("status") == "success" or result.get("success"):
-                    generated_path = result.get("image_path", result.get("local_path", ""))
-                    print(f"✅ Image generated successfully: {generated_path}")
-                    return generated_path
-                else:
-                    error_msg = result.get('error', result.get('message', 'Unknown error'))
-                    print(f"❌ Server error: {error_msg}")
-                    return f"❌ Server error: {error_msg}"
+            if generated_image:
+                import time
+                timestamp = int(time.time() * 1000)
+                filename = f"generated_{timestamp}.png"
+                output_dir = get_backend_output_path("comic_panels")
+                os.makedirs(output_dir, exist_ok=True)
+                destination_path = os.path.join(output_dir, filename)
+                generated_image.save(destination_path)
+                print(f"✅ Image generated successfully: {destination_path}")
+                return destination_path
             else:
-                error_msg = f"HTTP error {response.status_code}: {response.text}"
-                print(f"❌ {error_msg}")
-                return f"❌ {error_msg}"
+                error_msg = "Image generation failed. The model may have returned an empty response due to safety filters."
+                print(f"❌ Generation error: {error_msg}")
+                return f"❌ Generation error: {error_msg}"
         except Exception as e:
             error_msg = f"Error during image generation: {str(e)}"
             print(f"❌ {error_msg}")

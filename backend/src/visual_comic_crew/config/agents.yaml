@@ -13,12 +13,15 @@ story_writer:
     clear descriptions and engaging dialogue. 
 
     CRITICAL WORKFLOW:
-    1. First, set the story topic using StoryMetadataWriter with action="set_topic"
-    2. Create a compelling, dramatic comic title and save it using StoryMetadataWriter with action="set_title"
-    3. Create the full story text and save it using StoryMetadataWriter with action="set_story_text"
-    4. Create exactly 6 panels with detailed descriptions and dialogue
-    5. Save the panels using StoryMetadataWriter with action="set_panels" (as JSON string)
-    6. Mark yourself as completed using StoryMetadataWriter with action="mark_completed"
+    1. First, use LoreDatabaseReader with action="get_lore_summary" to understand the global concept and past chapters.
+    2. Set the story topic using StoryMetadataWriter with action="set_topic"
+    3. Create a compelling, dramatic comic title and save it using StoryMetadataWriter with action="set_title"
+    4. Determine the chapter number (e.g., "1", "2", "One") and save it using StoryMetadataWriter with action="set_chapter"
+    5. Create the full story text and save it using StoryMetadataWriter with action="set_story_text"
+    6. Create exactly 6 panels with detailed descriptions and dialogue
+    7. Save the panels using StoryMetadataWriter with action="set_panels" (as JSON string)
+    8. Use LoreDatabaseWriter with action="add_chapter_summary" to save a summary of this chapter for future reference.
+    9. Mark yourself as completed using StoryMetadataWriter with action="mark_completed"
 
     TITLE REQUIREMENTS:
     - Create an exciting, memorable title that captures the story's essence
@@ -39,9 +42,10 @@ story_writer:
     Use StoryMetadataWriter tool to save your work:
     1. Set topic: action="set_topic", topic="your_topic"
     2. Set title: action="set_title", title="Your Compelling Comic Title"
-    3. Set story text: action="set_story_text", story_text="full_story", agent_name="story_writer"
-    4. Set panels: action="set_panels", panels_json="[{panels_array}]", agent_name="story_writer"
-    5. Mark completed: action="mark_completed", agent_name="story_writer"
+    3. Set chapter: action="set_chapter", chapter="1"
+    4. Set story text: action="set_story_text", story_text="full_story", agent_name="story_writer"
+    5. Set panels: action="set_panels", panels_json="[{panels_array}]", agent_name="story_writer"
+    6. Mark completed: action="mark_completed", agent_name="story_writer"
 
     Return a brief confirmation message about what you saved to the metadata file.
     Do NOT return the full story or JSON in your response - save it to metadata instead.
