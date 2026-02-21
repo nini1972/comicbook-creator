@@ -546,6 +546,15 @@ class CharacterConsistencyTool(BaseTool):
             if not character_name or not character_description:
                 return "❌ Both character_name and character_description are required for create_character action"
             
+            # Reuse existing reference to maintain visual consistency across chapters
+            existing_reference = self._get_character_reference(character_name)
+            if existing_reference:
+                print(f"♻️ Reusing existing character reference for {character_name}: {existing_reference}")
+                return (
+                    f"✅ Character reference for '{character_name}' already exists from a previous chapter. "
+                    f"Reusing it to maintain visual consistency: {existing_reference}"
+                )
+            
             return self.create_character_reference(character_name, character_description, existing_image_path)
             
         elif action in ["generate_scene", "generate", "scene"]:

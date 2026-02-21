@@ -235,16 +235,28 @@ class ComicLayoutTool(BaseTool):
             print(f"[ComicLayoutTool] Warning: Could not save layout to file: {e}")
 
         # Save timestamped export and generate PDF using lazy-imported ComicExporter
+        # Guard against duplicate exports when the agent calls this tool more than once per run
         try:
-            from src.utils.comic_exporter import ComicExporter
-            exporter = ComicExporter(topic=comic_title, chapter=chapter)
-            md_path = exporter.save_markdown(markdown_output)
-            print(f"[ComicLayoutTool] Saved timestamped markdown: {md_path}")
-            try:
-                pdf_path = exporter.generate_pdf(markdown_output)
-                print(f"[ComicLayoutTool] Generated PDF: {pdf_path}")
-            except Exception as pdf_err:
-                print(f"[ComicLayoutTool] Warning: PDF generation failed (non-fatal): {pdf_err}")
+            import time as _time
+            from src.utils.comic_exporter import ComicExporter, _slugify
+            _safe_topic = _slugify(comic_title, 50)
+            _chapter_part = f"_Ch{_slugify(str(chapter), 10)}" if chapter else ""
+            _exports_dir = Path(get_backend_output_path("")) / "comic_exports"
+            _recent = [
+                f for f in (_exports_dir.glob(f"{_safe_topic}{_chapter_part}_*.md") if _exports_dir.exists() else [])
+                if (_time.time() - f.stat().st_mtime) < 60
+            ]
+            if _recent:
+                print(f"[ComicLayoutTool] Export already created this run, skipping duplicate: {_recent[0].name}")
+            else:
+                exporter = ComicExporter(topic=comic_title, chapter=chapter)
+                md_path = exporter.save_markdown(markdown_output)
+                print(f"[ComicLayoutTool] Saved timestamped markdown: {md_path}")
+                try:
+                    pdf_path = exporter.generate_pdf(markdown_output)
+                    print(f"[ComicLayoutTool] Generated PDF: {pdf_path}")
+                except Exception as pdf_err:
+                    print(f"[ComicLayoutTool] Warning: PDF generation failed (non-fatal): {pdf_err}")
         except Exception as e:
             print(f"[ComicLayoutTool] Warning: Could not export comic: {e}")
 
