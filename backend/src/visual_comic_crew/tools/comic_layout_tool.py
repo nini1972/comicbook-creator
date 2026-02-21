@@ -197,6 +197,7 @@ class ComicLayoutTool(BaseTool):
         layout_lines = [f"# {comic_title}", ""]
         
         # Add chapter title if available
+        chapter = None
         try:
             chapter = metadata_manager.get_chapter()
             if chapter:
@@ -236,7 +237,7 @@ class ComicLayoutTool(BaseTool):
         # Save timestamped export and generate PDF using lazy-imported ComicExporter
         try:
             from src.utils.comic_exporter import ComicExporter
-            exporter = ComicExporter(topic=comic_title)
+            exporter = ComicExporter(topic=comic_title, chapter=chapter)
             md_path = exporter.save_markdown(markdown_output)
             print(f"[ComicLayoutTool] Saved timestamped markdown: {md_path}")
             try:

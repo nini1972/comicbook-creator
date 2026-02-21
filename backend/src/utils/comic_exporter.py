@@ -119,8 +119,9 @@ def _convert_web_paths_to_local(markdown_content: str) -> str:
 
 
 class ComicExporter:
-    def __init__(self, topic: str):
+    def __init__(self, topic: str, chapter: str = None):
         self.topic = topic or "comic"
+        self.chapter = chapter
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         # Ensure output_dir is a Path
         self.output_dir = Path(get_backend_output_path("comic_exports"))
@@ -139,7 +140,8 @@ class ComicExporter:
         )
 
         safe_topic = _slugify(self.topic, maxlen=50)
-        filename = f"{safe_topic}_{self.timestamp}.md"
+        chapter_part = f"_Ch{_slugify(str(self.chapter), maxlen=10)}" if self.chapter else ""
+        filename = f"{safe_topic}{chapter_part}_{self.timestamp}.md"
         path = self.output_dir / filename
         with path.open("w", encoding="utf-8") as f:
             f.write(markdown_content)
@@ -272,7 +274,8 @@ class ComicExporter:
 """
 
         safe_topic = _slugify(self.topic, maxlen=50)
-        pdf_path = self.output_dir / f"{safe_topic}_{self.timestamp}_weasyprint.pdf"
+        chapter_part = f"_Ch{_slugify(str(self.chapter), maxlen=10)}" if self.chapter else ""
+        pdf_path = self.output_dir / f"{safe_topic}{chapter_part}_{self.timestamp}_weasyprint.pdf"
 
         # Use current working directory as base_url for relative paths
         base_url = str(Path.cwd())
@@ -301,7 +304,8 @@ class ComicExporter:
         pdf.add_section(Section(local_markdown))
         
         safe_topic = _slugify(self.topic, maxlen=50)
-        pdf_path = self.output_dir / f"{safe_topic}_{self.timestamp}.pdf"
+        chapter_part = f"_Ch{_slugify(str(self.chapter), maxlen=10)}" if self.chapter else ""
+        pdf_path = self.output_dir / f"{safe_topic}{chapter_part}_{self.timestamp}.pdf"
         
         pdf.save(str(pdf_path))
         
