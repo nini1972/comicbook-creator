@@ -7,7 +7,7 @@ import shutil
 import glob
 from datetime import datetime, timedelta
 from src.utils.image_utils import clean_temp_folder
-from src.utils.comic_exporter import ComicExporter
+# Removed unused ComicExporter import to avoid pymupdf crashes
 from src.utils.registry_utils import update_registry_entry
 from datetime import datetime
 from src.utils.path_utils import get_backend_output_path

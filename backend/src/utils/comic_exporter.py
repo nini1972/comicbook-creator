@@ -2,10 +2,16 @@ import os
 import re
 from datetime import datetime
 from pathlib import Path
-from markdown2 import markdown as md_to_html
-from weasyprint import HTML
-from markdown_pdf import MarkdownPdf, Section
 from src.utils.path_utils import get_backend_output_path, get_frontend_public_path
+
+# Lazy imports for PDF generation dependencies to avoid crashes on import
+# markdown_pdf imports pymupdf which can crash during import on some systems
+def _lazy_import_pdf_deps():
+    """Lazy import PDF generation dependencies"""
+    from markdown2 import markdown as md_to_html
+    from weasyprint import HTML
+    from markdown_pdf import MarkdownPdf, Section
+    return md_to_html, HTML, MarkdownPdf, Section
 
 
 def _slugify(text: str, maxlen: int = 50) -> str:
@@ -162,6 +168,9 @@ class ComicExporter:
         """Generate PDF using WeasyPrint (original approach with improvements)."""
         print("🔧 Using WeasyPrint approach...")
         
+        # Lazy import PDF dependencies
+        md_to_html, HTML, _, _ = _lazy_import_pdf_deps()
+        
         # Convert paths for local access
         local_markdown = _convert_web_paths_to_local(markdown_content)
         
@@ -280,6 +289,9 @@ class ComicExporter:
     def _generate_pdf_markdown_pdf(self, markdown_content: str) -> str:
         """Generate PDF using markdown-pdf (GitHub Copilot recommended approach)."""
         print("🔧 Using markdown-pdf approach (GitHub Copilot recommended)...")
+        
+        # Lazy import PDF dependencies
+        _, _, MarkdownPdf, Section = _lazy_import_pdf_deps()
         
         # Convert paths for local access
         local_markdown = _convert_web_paths_to_local(markdown_content)
